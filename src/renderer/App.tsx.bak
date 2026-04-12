@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { ErrorBoundary } from './components/ErrorDisplay'
-import { Dashboard } from './components/dashboard'
-import { V1AnalysisPage } from './pages/V1AnalysisPage'
+import { V0DashboardPage } from './pages/V0DashboardPage'
+import { V0AnalysisPage } from './pages/V0AnalysisPage'
 import { V0ChartsPage } from './pages/V0ChartsPage'
 import { V0DataSourcesPage } from './pages/V0DataSourcesPage'
 import { V0DictionaryPage } from './pages/V0DictionaryPage'
@@ -34,13 +34,13 @@ function AppContent() {
     setShowOnboarding(false)
   }
 
-  // 根据页面类型渲染对应的页面
+  // 根据页面类型渲染对应的 v0 页面
   const renderPage = () => {
     switch (activePage) {
       case 'dashboard':
-        return <Dashboard onNavigate={setActivePage} />
+        return <V0DashboardPage onNavigate={setActivePage} />
       case 'analysis':
-        return <V1AnalysisPage onNavigate={setActivePage} />
+        return <V0AnalysisPage onNavigate={setActivePage} />
       case 'charts':
         return <V0ChartsPage onNavigate={setActivePage} />
       case 'datasources':
@@ -52,7 +52,7 @@ function AppContent() {
       case 'settings':
         return <V0SettingsPage onNavigate={setActivePage} />
       default:
-        return <Dashboard onNavigate={setActivePage} />
+        return <V0DashboardPage onNavigate={setActivePage} />
     }
   }
 
