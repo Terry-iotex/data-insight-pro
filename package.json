@@ -151,6 +151,7 @@
     "electron-icon-builder": "^2.0.1",
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
+    "gifshot": "^0.4.5",
     "postcss": "^8.5.9",
     "postcss-nesting": "^14.0.0",
     "puppeteer": "^24.40.0",
