@@ -54,14 +54,30 @@ function initAIService(config: AIConfig) {
 }
 
 function createWindow() {
+  // Set icon for Windows and Linux (Mac uses .icns from package.json)
+  let iconPath: string | undefined
+  if (process.platform !== 'darwin') {
+    // Try multiple possible icon locations
+    const possiblePaths = [
+      path.join(__dirname, '../resources/icon.png'), // Packaged app
+      path.join(__dirname, '../../resources/icon.png'), // Dev mode
+      path.join(process.resourcesPath, 'icon.png'), // Asar resources
+    ]
+    iconPath = possiblePaths.find(p => {
+      try { return require('fs').existsSync(p) } catch { return false }
+    })
+  }
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1200,
     minHeight: 700,
     backgroundColor: '#0F172A',
-    titleBarStyle: 'hidden', // 改为hidden，避免和内容重叠
+    titleBarStyle: 'hidden',
     frame: true,
+    icon: iconPath,
+    title: 'DeciFlow',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

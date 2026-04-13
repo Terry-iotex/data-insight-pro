@@ -1,4 +1,3 @@
-"use client"
 
 import { useState } from "react"
 import { PageLayout } from "../components/v0-layout/PageLayout"
@@ -53,6 +52,10 @@ const dbTypes = [
   { id: "mongodb", name: "MongoDB", icon: "🍃" },
 ]
 
+interface V0Props {
+  onNavigate?: (page: string) => void
+}
+
 export function V0DataSourcesPage({ onNavigate }: V0Props) {
   const [dataSources, setDataSources] = useState(mockDataSources)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -91,7 +94,7 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
   }
 
   return (
-    <PageLayout activeItem="datasources">
+    <PageLayout activeItem="datasources" onNavigate={onNavigate}>
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
@@ -205,7 +208,11 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
                     <Button variant="ghost" size="sm" onClick={() => handleTest(dataSource.id)}>
                       <Check className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => console.log("Edit data source:", dataSource.id)}
+                    >
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button

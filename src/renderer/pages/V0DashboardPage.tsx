@@ -1,4 +1,3 @@
-"use client"
 
 import { useState } from "react"
 import { PageLayout } from "../components/v0-layout/PageLayout"

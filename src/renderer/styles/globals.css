@@ -1,19 +1,10 @@
-/**
- * DeciFlow - 全局样式系统
- * 基于 OKLCH 颜色空间的现代设计系统
- */
-
 @import 'tailwindcss';
 @import 'tw-animate-css';
-
-/* ============================
-   CSS 变量主题系统
-   ============================ */
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* 浅色模式颜色 - OKLCH */
+  /* DeciFlow v0 Light Mode - OKLCH Color System */
   --background: oklch(0.985 0.002 240);
   --foreground: oklch(0.15 0.01 250);
   --card: oklch(1 0 0);
@@ -33,18 +24,12 @@
   --border: oklch(0.9 0.01 250);
   --input: oklch(0.92 0.01 250);
   --ring: oklch(0.55 0.2 255);
-
-  /* 图表颜色 */
   --chart-1: oklch(0.55 0.2 255);
   --chart-2: oklch(0.65 0.18 280);
   --chart-3: oklch(0.7 0.18 160);
   --chart-4: oklch(0.75 0.15 80);
   --chart-5: oklch(0.6 0.2 30);
-
-  /* 圆角 */
   --radius: 0.75rem;
-
-  /* 侧边栏颜色 */
   --sidebar: oklch(0.99 0.002 250);
   --sidebar-foreground: oklch(0.15 0.01 250);
   --sidebar-primary: oklch(0.55 0.2 255);
@@ -53,15 +38,10 @@
   --sidebar-accent-foreground: oklch(0.25 0.01 250);
   --sidebar-border: oklch(0.92 0.01 250);
   --sidebar-ring: oklch(0.55 0.2 255);
-
-  /* 状态颜色 */
-  --success: oklch(0.55 0.15 145);
-  --warning: oklch(0.7 0.15 85);
-  --danger: oklch(0.55 0.22 25);
 }
 
 .dark {
-  /* 深色模式颜色 - OKLCH */
+  /* DeciFlow v0 Dark Mode - OKLCH Color System */
   --background: oklch(0.1 0.015 260);
   --foreground: oklch(0.95 0.005 250);
   --card: oklch(0.14 0.015 260);
@@ -81,15 +61,11 @@
   --border: oklch(0.22 0.02 260);
   --input: oklch(0.22 0.02 260);
   --ring: oklch(0.6 0.2 255);
-
-  /* 图表颜色 */
   --chart-1: oklch(0.6 0.2 255);
   --chart-2: oklch(0.6 0.18 280);
   --chart-3: oklch(0.7 0.18 160);
   --chart-4: oklch(0.75 0.15 80);
   --chart-5: oklch(0.6 0.2 30);
-
-  /* 侧边栏颜色 */
   --sidebar: oklch(0.12 0.015 260);
   --sidebar-foreground: oklch(0.95 0.005 250);
   --sidebar-primary: oklch(0.6 0.2 255);
@@ -98,27 +74,57 @@
   --sidebar-accent-foreground: oklch(0.95 0.005 250);
   --sidebar-border: oklch(0.22 0.02 260);
   --sidebar-ring: oklch(0.6 0.2 255);
-
-  /* 状态颜色 */
-  --success: oklch(0.55 0.15 145);
-  --warning: oklch(0.7 0.15 85);
-  --danger: oklch(0.5 0.2 25);
 }
 
-/* ============================
-   基础样式
-   ============================ */
+@theme inline {
+  --font-sans: 'Inter', 'Geist', 'Geist Fallback', -apple-system, BlinkMacSystemFont, 'system-ui', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Geist Mono', 'Geist Mono Fallback', 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-color: hsl(var(--border));
   }
-
   body {
-    @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-      sans-serif;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -142,76 +148,10 @@
     font-size: 1.125rem;
     font-weight: 600;
   }
-
-  /* 滚动条样式 */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-track {
-    @apply bg-muted;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30 rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/50;
-  }
 }
 
-/* ============================
-   工具类
-   ============================ */
-
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-
-  /* 渐变背景 */
-  .gradient-radial {
-    background-image: radial-gradient(
-      var(--tw-gradient-stops)
-    );
-  }
-
-  .gradient-conic {
-    background-image: conic-gradient(
-      from 180deg at 50% 50%,
-      var(--tw-gradient-stops)
-    );
-  }
-
-  /* 渐变文字 */
-  .gradient-text {
-    @apply bg-gradient-to-r from-primary to-accent;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  /* 玻璃态效果 */
-  .glass {
-    @apply bg-card/80 backdrop-blur-md border border-border;
-  }
-
-  /* 动画延迟 */
-  .animation-delay-200 {
-    animation-delay: 200ms;
-  }
-
-  .animation-delay-400 {
-    animation-delay: 400ms;
-  }
-
-  .animation-delay-600 {
-    animation-delay: 600ms;
-  }
-
-  /* 自定义滚动条 */
+  /* Scrollbar styling */
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
@@ -235,7 +175,15 @@
     background-color: hsl(var(--muted-foreground) / 0.5);
   }
 
-  /* Shimmer 加载动画 */
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary to-accent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Shimmer animation */
   @keyframes shimmer {
     0% {
       background-position: -1000px 0;
@@ -256,6 +204,36 @@
     background-size: 1000px 100%;
   }
 
+  /* Fade in animation */
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  /* Slide in from right */
+  @keyframes slide-in-right {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  .slide-in-right {
+    animation: slide-in-right 0.3s ease-out;
+  }
+
   /* Pulse glow effect */
   @keyframes pulse-glow {
     0%, 100% {
@@ -270,73 +248,25 @@
     animation: pulse-glow 2s infinite;
   }
 
-  /* 兼容旧版文字颜色 */
+  /* OnboardingFlow 文字颜色 - 浅色模式 */
   .text-text-primary {
-    color: hsl(var(--foreground));
+    color: #0F172A;
   }
   .text-text-secondary {
-    color: hsl(var(--muted-foreground));
+    color: #475569;
   }
   .text-text-muted {
-    color: hsl(var(--muted-foreground));
-  }
-}
-
-/* ============================
-   组件特定样式
-   ============================ */
-
-/* 侧边栏 */
-.sidebar {
-  @apply bg-sidebar border-r border-sidebar-border;
-}
-
-/* 主卡片 */
-.main-card {
-  @apply bg-card border border-border rounded-lg shadow-sm;
-}
-
-/* 输入框 */
-.input-base {
-  @apply bg-background border border-input rounded-md px-3 py-2 text-foreground
-    placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring
-    focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
-}
-
-/* 按钮 */
-.btn-primary {
-  @apply bg-primary text-primary-foreground hover:bg-primary/90
-    focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
-}
-
-.btn-secondary {
-  @apply bg-secondary text-secondary-foreground hover:bg-secondary/80
-    focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
-}
-
-/* ============================
-   响应式断点
-   ============================ */
-
-@layer responsive {
-  /* 移动端适配 */
-  @media (max-width: 768px) {
-    .container {
-      @apply px-4;
-    }
-  }
-}
-
-/* ============================
-   打印样式
-   ============================ */
-
-@media print {
-  body {
-    @apply bg-white text-black;
+    color: #94A3B8;
   }
 
-  .no-print {
-    display: none !important;
+  /* OnboardingFlow 文字颜色 - 深色模式 */
+  .dark .text-text-primary {
+    color: #F9FAFB;
+  }
+  .dark .text-text-secondary {
+    color: #E2E8F0;
+  }
+  .dark .text-text-muted {
+    color: #9CA3AF;
   }
 }

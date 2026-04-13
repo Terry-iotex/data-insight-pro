@@ -1,4 +1,3 @@
-"use client"
 
 import { useState } from "react"
 import { PageLayout } from "../components/v0-layout/PageLayout"
@@ -6,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Button } from "../components/v0-ui/Button"
 import { Input } from "../components/v0-ui/Input"
 import { Textarea } from "../components/v0-ui/Textarea"
+import { Switch } from "../components/v0-ui/Switch"
 import {
   Settings as SettingsIcon,
   Sparkles,
@@ -43,6 +43,14 @@ export function V0SettingsPage({ onNavigate }: V0Props) {
     model: "gpt-4",
   })
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle")
+  const [settings, setSettings] = useState({
+    queryCache: true,
+    dataMasking: true,
+    auditLog: true,
+    queryCompleteNotification: true,
+    anomalyNotification: true,
+    systemSound: false,
+  })
 
   const handleSave = () => {
     setSaveStatus("saving")
@@ -267,14 +275,10 @@ export function V0SettingsPage({ onNavigate }: V0Props) {
                     <div className="font-medium text-foreground">启用查询缓存</div>
                     <div className="text-sm text-muted-foreground">缓存重复查询的结果</div>
                   </div>
-                  <button
-                    className={cn(
-                      "relative h-6 w-11 rounded-full transition-colors",
-                      "bg-primary"
-                    )}
-                  >
-                    <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform translate-x-5" />
-                  </button>
+                  <Switch
+                    checked={settings.queryCache}
+                    onCheckedChange={(checked) => setSettings({ ...settings, queryCache: checked })}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -298,14 +302,10 @@ export function V0SettingsPage({ onNavigate }: V0Props) {
                     <div className="font-medium text-foreground">自动数据脱敏</div>
                     <div className="text-sm text-muted-foreground">敏感字段自动隐藏</div>
                   </div>
-                  <button
-                    className={cn(
-                      "relative h-6 w-11 rounded-full transition-colors",
-                      "bg-primary"
-                    )}
-                  >
-                    <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform translate-x-5" />
-                  </button>
+                  <Switch
+                    checked={settings.dataMasking}
+                    onCheckedChange={(checked) => setSettings({ ...settings, dataMasking: checked })}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -313,14 +313,10 @@ export function V0SettingsPage({ onNavigate }: V0Props) {
                     <div className="font-medium text-foreground">记录查询审计日志</div>
                     <div className="text-sm text-muted-foreground">保存所有查询历史</div>
                   </div>
-                  <button
-                    className={cn(
-                      "relative h-6 w-11 rounded-full transition-colors",
-                      "bg-primary"
-                    )}
-                  >
-                    <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform translate-x-5" />
-                  </button>
+                  <Switch
+                    checked={settings.auditLog}
+                    onCheckedChange={(checked) => setSettings({ ...settings, auditLog: checked })}
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -355,14 +351,10 @@ export function V0SettingsPage({ onNavigate }: V0Props) {
                     <div className="font-medium text-foreground">查询完成通知</div>
                     <div className="text-sm text-muted-foreground">查询完成时显示通知</div>
                   </div>
-                  <button
-                    className={cn(
-                      "relative h-6 w-11 rounded-full transition-colors",
-                      "bg-primary"
-                    )}
-                  >
-                    <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform translate-x-5" />
-                  </button>
+                  <Switch
+                    checked={settings.queryCompleteNotification}
+                    onCheckedChange={(checked) => setSettings({ ...settings, queryCompleteNotification: checked })}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -370,14 +362,10 @@ export function V0SettingsPage({ onNavigate }: V0Props) {
                     <div className="font-medium text-foreground">异常检测通知</div>
                     <div className="text-sm text-muted-foreground">发现数据异常时通知</div>
                   </div>
-                  <button
-                    className={cn(
-                      "relative h-6 w-11 rounded-full transition-colors",
-                      "bg-primary"
-                    )}
-                  >
-                    <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform translate-x-5" />
-                  </button>
+                  <Switch
+                    checked={settings.anomalyNotification}
+                    onCheckedChange={(checked) => setSettings({ ...settings, anomalyNotification: checked })}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -385,14 +373,10 @@ export function V0SettingsPage({ onNavigate }: V0Props) {
                     <div className="font-medium text-foreground">系统声音</div>
                     <div className="text-sm text-muted-foreground">通知时播放声音</div>
                   </div>
-                  <button
-                    className={cn(
-                      "relative h-6 w-11 rounded-full transition-colors",
-                      "bg-secondary"
-                    )}
-                  >
-                    <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform" />
-                  </button>
+                  <Switch
+                    checked={settings.systemSound}
+                    onCheckedChange={(checked) => setSettings({ ...settings, systemSound: checked })}
+                  />
                 </div>
               </CardContent>
             </Card>

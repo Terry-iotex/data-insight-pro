@@ -1,4 +1,3 @@
-"use client"
 
 import { useState } from "react"
 import { PageLayout } from "../components/v0-layout/PageLayout"
@@ -15,6 +14,7 @@ import {
   Hash,
 } from "lucide-react"
 import { cn } from "../lib/utils"
+import { showToast } from "../lib/download"
 
 const mockMetrics = [
   {
@@ -61,8 +61,13 @@ const mockFields = [
   },
 ]
 
+interface V0Props {
+  onNavigate?: (page: string) => void
+}
+
 export function V0DictionaryPage({ onNavigate }: V0Props) {
   const [searchQuery, setSearchQuery] = useState("")
+  const [activeTab, setActiveTab] = useState("metrics")
 
   const [showAddMetric, setShowAddMetric] = useState(false)
 
@@ -76,8 +81,23 @@ export function V0DictionaryPage({ onNavigate }: V0Props) {
     field.description.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  const handleEditMetric = (id: string) => {
+    console.log("Edit metric:", id)
+    showToast("编辑指标功能即将推出", "info")
+  }
+
+  const handleDeleteMetric = (id: string) => {
+    console.log("Delete metric:", id)
+    showToast("指标已删除", "success")
+  }
+
+  const handleEditField = (index: number) => {
+    console.log("Edit field:", index)
+    showToast("编辑字段功能即将推出", "info")
+  }
+
   return (
-    <PageLayout activeItem="dictionary">
+    <PageLayout activeItem="dictionary" onNavigate={onNavigate}>
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
@@ -88,7 +108,13 @@ export function V0DictionaryPage({ onNavigate }: V0Props) {
             管理业务指标和字段定义
           </p>
         </div>
-        <Button onClick={() => setShowAddMetric(true)} className="gap-2">
+        <Button
+          onClick={() => {
+            setShowAddMetric(true)
+            showToast("添加指标对话框", "info")
+          }}
+          className="gap-2"
+        >
           <Plus className="h-4 w-4" />
           添加指标
         </Button>
@@ -151,10 +177,20 @@ export function V0DictionaryPage({ onNavigate }: V0Props) {
                       <CardDescription>{metric.description}</CardDescription>
                     </div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleEditMetric(metric.id)}
+                      >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleDeleteMetric(metric.id)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -216,7 +252,12 @@ export function V0DictionaryPage({ onNavigate }: V0Props) {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleEditField(index)}
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
                         </div>

@@ -1,11 +1,12 @@
-"use client"
 
 import { Button } from "../v0-ui/Button"
 import { Database, Sparkles, FileText, Clock } from "lucide-react"
 import { cn } from "../../lib/utils"
+import { showToast } from "../../lib/download"
 
 interface EmptyStateProps {
   type: "no-datasource" | "no-insights" | "no-charts" | "no-history"
+  onAction?: () => void
 }
 
 const emptyStates = {
@@ -39,8 +40,29 @@ const emptyStates = {
   },
 }
 
-export function EmptyStates({ type }: EmptyStateProps) {
+export function EmptyStates({ type, onAction }: EmptyStateProps) {
   const state = emptyStates[type]
+
+  const handleAction = () => {
+    if (onAction) {
+      onAction()
+    } else {
+      // Default behavior based on type
+      switch (type) {
+        case "no-datasource":
+          showToast("正在打开数据源配置...", "info")
+          break
+        case "no-insights":
+          showToast("正在开始新的查询...", "info")
+          break
+        case "no-charts":
+          showToast("正在创建图表...", "info")
+          break
+        default:
+          break
+      }
+    }
+  }
 
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card p-12 text-center">
@@ -62,7 +84,7 @@ export function EmptyStates({ type }: EmptyStateProps) {
 
       {/* Action Button */}
       {state.action && (
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={handleAction}>
           {state.action}
         </Button>
       )}

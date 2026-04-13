@@ -1,8 +1,9 @@
-"use client"
 
+import { useState } from "react"
 import { Button } from "../v0-ui/Button"
-import { Table, Download, Eye, Code2, TrendingUp, TrendingDown } from "lucide-react"
+import { Table, Download, Eye, EyeOff, Code2, TrendingUp, TrendingDown, Check } from "lucide-react"
 import { cn } from "../../lib/utils"
+import { downloadAsCSV, downloadAsJSON, copyToClipboard, showToast } from "../../lib/download"
 
 const tableData = [
   { date: "2024-01", users: 12345, retention: 68.5, trend: "up", change: "+5.2%" },
@@ -13,6 +14,28 @@ const tableData = [
 ]
 
 export function DataPreview() {
+  const [showSQL, setShowSQL] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const handleExportCSV = () => {
+    downloadAsCSV(tableData, "query-results.csv")
+    showToast("已导出为 CSV", "success")
+  }
+
+  const handleExportJSON = () => {
+    downloadAsJSON(tableData, "query-results.json")
+    showToast("已导出为 JSON", "success")
+  }
+
+  const handleCopySQL = async () => {
+    const sql = "SELECT DATE(activity_date), COUNT(DISTINCT user_id) FROM user_activities WHERE activity_date >= CURRENT_DATE - INTERVAL '7 days' GROUP BY DATE(activity_date)"
+    const success = await copyToClipboard(sql)
+    if (success) {
+      setCopied(true)
+      showToast("SQL 已复制到剪贴板", "success")
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
   return (
     <div className="rounded-xl border border-border bg-card">
       {/* Header */}
@@ -27,15 +50,38 @@ export function DataPreview() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="gap-2">
-            <Code2 className="h-4 w-4" />
-            SQL
+          <Button variant="ghost" size="sm" className="gap-2" onClick={handleCopySQL}>
+            {copied ? (
+              <>
+                <Check className="h-4 w-4" />
+                已复制
+              </>
+            ) : (
+              <>
+                <Code2 className="h-4 w-4" />
+                SQL
+              </>
+            )}
           </Button>
-          <Button variant="ghost" size="sm" className="gap-2">
-            <Eye className="h-4 w-4" />
-            预览
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            onClick={() => setShowSQL(!showSQL)}
+          >
+            {showSQL ? (
+              <>
+                <EyeOff className="h-4 w-4" />
+                隐藏
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4" />
+                预览
+              </>
+            )}
           </Button>
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleExportCSV}>
             <Download className="h-4 w-4" />
             导出
           </Button>

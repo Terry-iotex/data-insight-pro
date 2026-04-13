@@ -23,26 +23,27 @@ export const useTheme = () => {
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<ThemeMode>(() => {
+    // 从 localStorage 读取，或默认使用暗色模式
     const saved = localStorage.getItem('theme') as ThemeMode
     return saved || 'dark'
   })
 
   useEffect(() => {
-    // 保存到 localStorage
-    localStorage.setItem('theme', mode)
-
-    // 更新 HTML class
+    // 根据当前模式切换 class
+    const root = document.documentElement
     if (mode === 'dark') {
-      document.documentElement.classList.add('dark')
-      document.documentElement.style.backgroundColor = '#0B1220'
+      root.classList.add('dark')
+      root.style.backgroundColor = 'oklch(0.1 0.015 260)'
     } else {
-      document.documentElement.classList.remove('dark')
-      document.documentElement.style.backgroundColor = '#F8FAFC'
+      root.classList.remove('dark')
+      root.style.backgroundColor = 'oklch(0.985 0.002 240)'
     }
   }, [mode])
 
   const toggleTheme = () => {
-    setMode(prev => prev === 'dark' ? 'light' : 'dark')
+    const newMode = mode === 'dark' ? 'light' : 'dark'
+    setMode(newMode)
+    localStorage.setItem('theme', newMode)
   }
 
   const tokens = getTokens(mode)

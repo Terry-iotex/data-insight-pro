@@ -1,4 +1,3 @@
-"use client"
 
 import { useState } from "react"
 import { PageLayout } from "../components/v0-layout/PageLayout"
@@ -56,6 +55,10 @@ const mockHistory = [
   },
 ]
 
+interface V0Props {
+  onNavigate?: (page: string) => void
+}
+
 export function V0HistoryPage({ onNavigate }: V0Props) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
@@ -96,7 +99,7 @@ export function V0HistoryPage({ onNavigate }: V0Props) {
   }
 
   return (
-    <PageLayout activeItem="history">
+    <PageLayout activeItem="history" onNavigate={onNavigate}>
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">

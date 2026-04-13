@@ -12,23 +12,30 @@
     "build": "npm run build:renderer && npm run build:main",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
+    "build:icons": "node scripts/generate-icons.js",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac",
-    "dist:win": "npm run build && electron-builder --win"
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mas": "npm run build && electron-builder --mac mas",
+    "dist:mas-dev": "npm run build && electron-builder --mac mas-dev",
+    "notarize": "node scripts/notarize.js"
   },
   "build": {
     "appId": "com.datainsight.pro",
     "productName": "DeciFlow",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "resources"
     },
     "files": [
       "dist-main/**/*",
       "dist-renderer/**/*",
       "resources/**/*"
     ],
+    "icon": "resources/icon.png",
     "mac": {
+      "icon": "resources/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -36,11 +43,32 @@
             "x64",
             "arm64"
           ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "resources/entitlements.mac.plist",
+      "entitlementsInherit": "resources/entitlements.mac.plist",
+      "minimumSystemVersion": "10.15.0"
+    },
+    "mas": {
+      "icon": "resources/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "entitlements": "resources/entitlements.mas.plist",
+      "entitlementsInherit": "resources/entitlements.mas.plist",
+      "provisioningProfile": "resources/embedded.provisionprofile"
     },
     "win": {
+      "icon": "resources/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -56,7 +84,6 @@
     }
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^6.0.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",
@@ -84,6 +111,8 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@tailwindcss/vite": "^4.2.2",
+    "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.27",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -119,8 +148,10 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "electron-icon-builder": "^2.0.1",
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
+    "sharp": "^0.34.5",
     "typescript": "^6.0.2"
   }
 }

@@ -1,4 +1,3 @@
-"use client"
 
 import { useState } from "react"
 import { PageLayout } from "../components/v0-layout/PageLayout"
@@ -20,6 +19,7 @@ import {
 } from "lucide-react"
 import { EmptyStates } from "../components/v0-dashboard/EmptyStates"
 import { cn } from "../lib/utils"
+import { showToast } from "../lib/download"
 
 const analysisTypes = [
   {
@@ -103,7 +103,7 @@ export function V0AnalysisPage({ onNavigate }: V0Props) {
 
   if (!hasDataConnected) {
     return (
-      <PageLayout activeItem="analysis">
+      <PageLayout activeItem="analysis" onNavigate={onNavigate}>
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10">
@@ -125,7 +125,7 @@ export function V0AnalysisPage({ onNavigate }: V0Props) {
   }
 
   return (
-    <PageLayout activeItem="analysis">
+    <PageLayout activeItem="analysis" onNavigate={onNavigate}>
       {/* Page Header */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
@@ -191,6 +191,10 @@ export function V0AnalysisPage({ onNavigate }: V0Props) {
             <Card
               key={type.id}
               className="group cursor-pointer transition-all hover:border-primary/50 hover:shadow-md"
+              onClick={() => {
+                setQuery(type.description)
+                showToast(`已选择: ${type.title}`, "info")
+              }}
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">

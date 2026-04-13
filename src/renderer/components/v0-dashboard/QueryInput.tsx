@@ -1,4 +1,3 @@
-"use client"
 
 import { useState } from "react"
 import { Button } from "../v0-ui/Button"

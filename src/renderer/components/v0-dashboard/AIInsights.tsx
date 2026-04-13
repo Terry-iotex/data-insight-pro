@@ -1,8 +1,8 @@
-"use client"
 
 import { Button } from "../v0-ui/Button"
 import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, ArrowRight } from "lucide-react"
 import { cn } from "../../lib/utils"
+import { showToast } from "../../lib/download"
 
 const insights = [
   {
@@ -35,6 +35,14 @@ const insights = [
 ]
 
 export function AIInsights() {
+  const handleViewAll = () => {
+    showToast("查看全部 AI 洞察", "info")
+  }
+
+  const handleDeepAnalyze = (insightType: string) => {
+    showToast(`正在深入分析: ${insightType}`, "info")
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -48,7 +56,7 @@ export function AIInsights() {
             <p className="text-sm text-muted-foreground">基于您的数据自动生成</p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" className="gap-2 text-primary">
+        <Button variant="ghost" size="sm" className="gap-2 text-primary" onClick={handleViewAll}>
           查看全部
           <ArrowRight className="h-4 w-4" />
         </Button>
@@ -87,7 +95,12 @@ export function AIInsights() {
                 </p>
               </div>
 
-              <Button variant="ghost" size="sm" className={cn("mt-2 gap-2 px-0", insight.color)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn("mt-2 gap-2 px-0", insight.color)}
+                onClick={() => handleDeepAnalyze(insight.title)}
+              >
                 深入分析
                 <ArrowRight className="h-3 w-3" />
               </Button>

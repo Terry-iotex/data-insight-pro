@@ -1,63 +1,115 @@
-"use client"
 
-import { Clock, TrendingUp } from "lucide-react"
-import { cn } from "../../lib/utils"
+import { useState } from "react"
+import { Button } from "../v0-ui/Button"
+import { Clock, Play, MoreHorizontal, CheckCircle2, Trash2 } from "lucide-react"
+import { showToast } from "../../lib/download"
 
 const recentQueries = [
   {
-    query: "最近7天的日活用户趋势",
-    time: "2分钟前",
-    icon: TrendingUp,
-    color: "text-emerald-500",
+    query: "近7天新用户注册趋势分析",
+    time: "2小时前",
+    rows: 1234,
+    duration: "156ms",
+    status: "success",
   },
   {
-    query: "用户留存率分析",
-    time: "15分钟前",
-    icon: TrendingUp,
-    color: "text-chart-2",
+    query: "用户留存率分析 - 按渠道分组",
+    time: "昨天",
+    rows: 856,
+    duration: "203ms",
+    status: "success",
   },
   {
-    query: "各渠道转化率对比",
-    time: "1小时前",
-    icon: TrendingUp,
-    color: "text-chart-3",
+    query: "转化漏斗：注册到首次付费",
+    time: "2天前",
+    rows: 2341,
+    duration: "312ms",
+    status: "success",
+  },
+  {
+    query: "月度收入增长对比分析",
+    time: "3天前",
+    rows: 567,
+    duration: "89ms",
+    status: "success",
   },
 ]
 
 export function RecentQueries() {
+  const [queries, setQueries] = useState(recentQueries)
+
+  const handleReRun = (query: string) => {
+    showToast(`正在重新执行: ${query.substring(0, 20)}...`, "info")
+  }
+
+  const handleDelete = (index: number) => {
+    setQueries(queries.filter((_, i) => i !== index))
+    showToast("查询已删除", "success")
+  }
+
+  const handleViewAll = () => {
+    showToast("查看全部查询历史", "info")
+  }
   return (
-    <div className="space-y-4">
+    <div className="rounded-xl border border-border bg-card">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-border px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
             <Clock className="h-4 w-4 text-muted-foreground" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-foreground">最近查询</h2>
-            <p className="text-sm text-muted-foreground">快速查看历史记录</p>
+            <h2 className="font-semibold text-foreground">最近查询</h2>
+            <p className="text-sm text-muted-foreground">快速重新执行历史查询</p>
           </div>
         </div>
-        <button className="text-sm text-primary hover:underline">
+        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={handleViewAll}>
           查看全部
-        </button>
+        </Button>
       </div>
 
-      {/* Queries List */}
-      <div className="space-y-2">
+      {/* Query List */}
+      <div className="divide-y divide-border">
         {recentQueries.map((item, index) => (
-          <button
+          <div
             key={index}
-            className="flex w-full items-center gap-4 rounded-lg border border-border bg-card p-4 text-left transition-all hover:border-primary/30 hover:bg-muted/20"
+            className="group flex items-center justify-between px-5 py-4 transition-colors hover:bg-muted/30"
           >
-            <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", item.color === "text-emerald-500" ? "bg-emerald-500/10" : item.color === "text-chart-2" ? "bg-chart-2/10" : "bg-chart-3/10")}>
-              <item.icon className={cn("h-5 w-5", item.color)} />
+            <div className="flex items-center gap-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-medium text-foreground">{item.query}</p>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>{item.time}</span>
+                  <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />
+                  <span>{item.rows} 行</span>
+                  <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />
+                  <span>{item.duration}</span>
+                </div>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="font-medium text-foreground">{item.query}</p>
-              <p className="text-xs text-muted-foreground">{item.time}</p>
+
+            <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => handleReRun(item.query)}
+              >
+                <Play className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => handleDelete(index)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </div>
-          </button>
+          </div>
         ))}
       </div>
     </div>

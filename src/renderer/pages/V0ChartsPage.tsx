@@ -1,10 +1,10 @@
-"use client"
 
 import { useState } from "react"
 import { PageLayout } from "../components/v0-layout/PageLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/v0-ui/Card"
 import { Button } from "../components/v0-ui/Button"
 import { EmptyStates } from "../components/v0-dashboard/EmptyStates"
+import { showToast } from "../lib/download"
 import {
   BarChart3,
   LineChart,
@@ -15,6 +15,21 @@ import {
   Share2,
   Filter,
 } from "lucide-react"
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts"
 import { cn } from "../lib/utils"
 
 const chartTemplates = [
@@ -33,6 +48,15 @@ const CHART_COLORS = {
 }
 
 const PIE_COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#10b981"]
+
+const AREA_COLORS = {
+  primary: "#6366f1",
+  secondary: "#8b5cf6",
+}
+
+const BAR_COLORS = {
+  primary: "#6366f1",
+}
 
 const chartData = [
   { name: "1月", value: 4000, prev: 3200 },
@@ -65,6 +89,21 @@ interface V0Props {
 export function V0ChartsPage({ onNavigate }: V0Props) {
   const [hasData] = useState(true)
 
+  const handleDownload = (chartName: string) => {
+    showToast(`正在导出 ${chartName}...`, "info")
+    setTimeout(() => {
+      showToast(`${chartName} 已导出`, "success")
+    }, 500)
+  }
+
+  const handleShare = (chartName: string) => {
+    showToast(`${chartName} 链接已复制`, "success")
+  }
+
+  const handleCreateChart = () => {
+    showToast("图表创建功能即将推出", "info")
+  }
+
   if (!hasData) {
     return (
       <PageLayout activeItem="charts" onNavigate={onNavigate}>
@@ -96,11 +135,11 @@ export function V0ChartsPage({ onNavigate }: V0Props) {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => showToast("筛选功能即将推出", "info")}>
             <Filter className="mr-2 h-4 w-4" />
             筛选
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={handleCreateChart}>
             <Plus className="mr-2 h-4 w-4" />
             新建图表
           </Button>
@@ -137,21 +176,71 @@ export function V0ChartsPage({ onNavigate }: V0Props) {
               <CardDescription>月度活跃用户对比</CardDescription>
             </div>
             <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownload("图表")}>
                 <Download className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleShare("图表")}>
                 <Share2 className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex h-64 items-center justify-center rounded-xl bg-muted/20">
-              <div className="text-center">
-                <LineChart className="mx-auto mb-2 h-12 w-12 text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">图表将在此处显示</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">需要 Recharts 集成</p>
-              </div>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={AREA_COLORS.primary} stopOpacity={0.2} />
+                      <stop offset="95%" stopColor={AREA_COLORS.primary} stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorPrev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={AREA_COLORS.secondary} stopOpacity={0.2} />
+                      <stop offset="95%" stopColor={AREA_COLORS.secondary} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.1} vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "currentColor", opacity: 0.5, fontSize: 12 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "currentColor", opacity: 0.5, fontSize: 12 }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "12px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    }}
+                    labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
+                    itemStyle={{ color: "hsl(var(--muted-foreground))" }}
+                  />
+                  <Legend />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke={AREA_COLORS.primary}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorValue)"
+                    name="当前"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="prev"
+                    stroke={AREA_COLORS.secondary}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorPrev)"
+                    name="同期"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
@@ -164,21 +253,44 @@ export function V0ChartsPage({ onNavigate }: V0Props) {
               <CardDescription>各渠道访问量分布</CardDescription>
             </div>
             <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownload("图表")}>
                 <Download className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleShare("图表")}>
                 <Share2 className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex h-64 items-center justify-center rounded-xl bg-muted/20">
-              <div className="text-center">
-                <BarChart3 className="mx-auto mb-2 h-12 w-12 text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">图表将在此处显示</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">需要 Recharts 集成</p>
-              </div>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.1} vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "currentColor", opacity: 0.5, fontSize: 12 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "currentColor", opacity: 0.5, fontSize: 12 }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "12px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    }}
+                    labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
+                    itemStyle={{ color: "hsl(var(--muted-foreground))" }}
+                    formatter={(value: number) => [value.toLocaleString(), "访问量"]}
+                  />
+                  <Bar dataKey="value" fill={BAR_COLORS.primary} radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
@@ -191,20 +303,58 @@ export function V0ChartsPage({ onNavigate }: V0Props) {
               <CardDescription>用户访问设备占比</CardDescription>
             </div>
             <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownload("图表")}>
                 <Download className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleShare("图表")}>
                 <Share2 className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex h-56 items-center justify-center rounded-xl bg-muted/20">
-              <div className="text-center">
-                <PieChartIcon className="mx-auto mb-2 h-12 w-12 text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">图表将在此处显示</p>
-              </div>
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "12px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    }}
+                    labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
+                    itemStyle={{ color: "hsl(var(--muted-foreground))" }}
+                    formatter={(value: number) => [`${value}%`, "占比"]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Legend */}
+            <div className="mt-2 flex items-center justify-center gap-4">
+              {pieData.map((item, index) => (
+                <div key={item.name} className="flex items-center gap-1.5">
+                  <div
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+                  />
+                  <span className="text-xs text-muted-foreground">{item.name}</span>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
