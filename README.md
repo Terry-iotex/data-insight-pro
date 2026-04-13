@@ -41,27 +41,51 @@
 
 ## 📥 下载安装
 
-### macOS
+> **🎯 快速下载：访问 [Releases 页面](https://github.com/Terry-iotex/data-insight-pro/releases) 获取最新版本**
+
+### 🍎 macOS
 
 **支持 macOS 10.15+ (Intel & Apple Silicon M1/M2/M3)**
 
-1. 下载 `DeciFlow-mac.dmg`
-2. 打开 DMG 文件，将 DeciFlow 拖入「应用程序」文件夹
+| 文件 | 说明 | 下载 |
+|------|------|------|
+| `DeciFlow-1.0.0-universal.dmg` | 通用安装包（推荐） | [下载](https://github.com/Terry-iotex/data-insight-pro/releases/latest) |
+
+**安装步骤：**
+1. 下载 `.dmg` 文件
+2. 双击打开，将 DeciFlow 拖入「应用程序」文件夹
 3. 首次打开时，右键点击 → 选择「打开」（绕过 Gatekeeper）
 
-[**下载 macOS 版本**](https://github.com/Terry-iotex/data-insight-pro/releases/latest) →
+**⚠️ 提示**：如果遇到「无法验证开发者」错误，请在系统偏好设置 → 安全性与隐私中点击「仍要打开」
 
 ---
 
-### Windows
+### 🪟 Windows
 
 **支持 Windows 10/11 (64 位)**
 
-1. 下载 `DeciFlow-winSetup.exe`
-2. 运行安装程序，按提示完成安装
-3. 启动 DeciFlow
+| 文件 | 说明 | 下载 |
+|------|------|------|
+| `DeciFlow-Setup-1.0.0.exe` | 安装程序（推荐） | [下载](https://github.com/Terry-iotex/data-insight-pro/releases/latest) |
 
-[**下载 Windows 版本**](https://github.com/Terry-iotex/data-insight-pro/releases/latest) →
+**安装步骤：**
+1. 下载 `.exe` 安装程序
+2. 运行安装程序，按提示完成安装
+3. 从桌面快捷方式或开始菜单启动 DeciFlow
+
+---
+
+### 🐧 Linux
+
+**支持 Ubuntu/Debian/Fedora 等**
+
+```bash
+# 从源码运行
+git clone https://github.com/Terry-iotex/data-insight-pro.git
+cd data-insight-pro
+npm install
+npm run dev
+```
 
 ---
 
