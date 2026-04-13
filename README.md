@@ -6,7 +6,7 @@
 
 **AI 驱动的数据分析工具，让数据洞察触手可及**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-Proprietary-red.svg)](https://github.com/Terry-iotex/deciflow-src)
 [![Electron](https://img.shields.io/badge/Electron-41-9FEAF9)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6)](https://www.typescriptlang.org/)
@@ -75,40 +75,6 @@
 
 ---
 
-### 🐧 Linux
-
-**支持 Ubuntu/Debian/Fedora 等**
-
-```bash
-# 从源码运行
-git clone https://github.com/Terry-iotex/data-insight-pro.git
-cd data-insight-pro
-npm install
-npm run dev
-```
-
----
-
-### 从源码运行
-
-```bash
-# 克隆仓库
-git clone https://github.com/Terry-iotex/data-insight-pro.git
-cd data-insight-pro
-
-# 安装依赖
-npm install
-
-# 开发模式运行
-npm run dev
-
-# 构建应用
-npm run build
-npm run dist
-```
-
----
-
 ## 🚀 快速开始
 
 ### 1. 连接数据源
@@ -145,6 +111,14 @@ npm run dist
 
 ---
 
+## 🔒 源代码
+
+DeciFlow 的源代码托管在私有仓库中。
+
+如需访问源代码或参与开发，请联系：[terry@iotex.io](mailto:terry@iotex.io)
+
+---
+
 ## 🛠️ 技术栈
 
 - **前端**: React 19 + TypeScript + Tailwind CSS
@@ -155,17 +129,9 @@ npm run dist
 
 ---
 
-## 🌟 Star History
-
-如果这个项目对你有帮助，请给个 Star ⭐
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Terry-iotex/data-insight-pro&type=Date)](https://star-history.com/#Terry-iotex/data-insight-pro&Date)
-
----
-
 ## 📄 许可证
 
-[MIT License](LICENSE) - Terry
+Proprietary - © 2025 Terry
 
 ---
 
