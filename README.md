@@ -1,6 +1,6 @@
 <div align="center">
 
-![DeciFlow Logo](resources/icon-128x128.png)
+![DeciFlow Logo](resources/icon-512x512.png)
 
 # DeciFlow
 
