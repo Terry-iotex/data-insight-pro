@@ -6,7 +6,7 @@
 
 **AI 驱动的数据分析工具，让数据洞察触手可及**
 
-[![License: MIT](https://img.shields.io/badge/License-Proprietary-red.svg)](https://github.com/Terry-iotex/deciflow-src)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](https://github.com/Terry-Xxxu/deciflow-src)
 [![Electron](https://img.shields.io/badge/Electron-41-9FEAF9)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6)](https://www.typescriptlang.org/)
@@ -30,7 +30,7 @@
 
 ## 📥 下载安装
 
-> **🎯 快速下载：访问 [Releases 页面](https://github.com/Terry-iotex/data-insight-pro/releases) 获取最新版本**
+> **🎯 快速下载：访问 [Releases 页面](https://github.com/Terry-Xxxu/data-insight-pro/releases) 获取最新版本**
 
 ### 🪟 Windows
 
@@ -86,15 +86,13 @@
 
 ## 📚 使用文档
 
-详细使用文档请访问：[Wiki](https://github.com/Terry-iotex/data-insight-pro/wiki)
+详细使用文档请访问：[Wiki](https://github.com/Terry-Xxxu/data-insight-pro/wiki)
 
 ---
 
 ## 🔒 源代码
 
 DeciFlow 的源代码托管在私有仓库中。
-
-如需访问源代码或参与开发，请联系：[terry@iotex.io](mailto:terry@iotex.io)
 
 ---
 
@@ -125,8 +123,8 @@ Proprietary - © 2025 Terry
 
 <div align="center">
 
-**Made with ❤️ by [Terry](https://github.com/Terry-iotex)**
+**Made with ❤️ by [Terry](https://github.com/Terry-Xxxu)**
 
-[官网](https://datainsight.pro) · [文档](https://docs.datainsight.pro) · [反馈](https://github.com/Terry-iotex/data-insight-pro/issues)
+[官网](https://datainsight.pro) · [文档](https://docs.datainsight.pro) · [反馈](https://github.com/Terry-Xxxu/data-insight-pro/issues)
 
 </div>
