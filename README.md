@@ -77,7 +77,23 @@
 
 ### 🍎 macOS
 
-**即将推出，敬请期待...**
+**支持 macOS 10.15+ (Intel & Apple Silicon)**
+
+#### Apple Silicon (M1/M2/M3/M4/M5)
+- 下载 [DeciFlow-1.0.0-arm64.dmg](https://github.com/Terry-Xxxu/deciflow/releases/download/v1.0.0/DeciFlow-1.0.0-arm64.dmg) (130MB)
+
+安装步骤：
+1. 下载 DMG 文件
+2. 双击打开，将 DeciFlow 拖到应用程序文件夹
+3. 在启动台找到 DeciFlow 并启动
+
+#### Intel Mac
+- 下载 [DeciFlow-1.0.0.dmg](https://github.com/Terry-Xxxu/deciflow/releases/download/v1.0.0/DeciFlow-1.0.0.dmg) (136MB)
+
+安装步骤：
+1. 下载 DMG 文件
+2. 双击打开，将 DeciFlow 拖到应用程序文件夹
+3. 在启动台找到 DeciFlow 并启动
 
 ---
 
