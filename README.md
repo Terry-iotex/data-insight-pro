@@ -63,7 +63,10 @@
 
 **支持 Windows 10/11 (64 位)**
 
-1. 下载 `DeciFlow-Windows-1.0.0.zip`
+下载 [DeciFlow-Windows-1.0.0.zip](https://github.com/Terry-Xxxu/deciflow/releases/download/v1.0.0/DeciFlow-Windows-1.0.0.zip) (154MB)
+
+安装步骤：
+1. 下载 ZIP 文件
 2. 解压到任意目录
 3. 双击运行 `DeciFlow.exe`
 
@@ -71,7 +74,10 @@
 
 **支持 Linux x64**
 
-1. 下载 `DeciFlow-Linux-1.0.0.tar.gz`
+下载 [DeciFlow-Linux-1.0.0.tar.gz](https://github.com/Terry-Xxxu/deciflow/releases/download/v1.0.0/DeciFlow-Linux-1.0.0.tar.gz) (129MB)
+
+安装步骤：
+1. 下载 tar.gz 文件
 2. 解压：`tar -xzf DeciFlow-Linux-1.0.0.tar.gz`
 3. 运行：`cd linux-unpacked && ./deciflow`
 
