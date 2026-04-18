@@ -377,6 +377,22 @@ export function V0SettingsPage({ onNavigate }: V0Props) {
                     onCheckedChange={(checked) => setSettings({ ...settings, queryCache: checked })}
                   />
                 </div>
+
+                <div className="border-t border-border pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-foreground">重新体验数据导入引导</div>
+                      <div className="text-sm text-muted-foreground">重新打开新手引导，可重新导入数据文件</div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onNavigate?.('__show_onboarding__')}
+                    >
+                      打开引导
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}

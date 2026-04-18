@@ -8,7 +8,6 @@
 import React, { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Target, BarChart2, Bot, Lightbulb, FileText, Database, Table2, Lock, CheckCircle2 } from 'lucide-react'
-import { useTheme } from '../../contexts/ThemeContext'
 import { SecurityDeclaration } from '../SecurityDeclaration'
 import { ConnectionTest } from '../ConnectionTest'
 
@@ -30,8 +29,6 @@ interface DbFormStepProps {
 }
 
 const DbFormStep: React.FC<DbFormStepProps> = ({ onSubmit, onBack }) => {
-  const { mode } = useTheme()
-  const isDark = mode === 'dark'
   const [formData, setFormData] = useState({
     type: 'postgresql',
     host: '',
@@ -167,15 +164,14 @@ const DbFormStep: React.FC<DbFormStepProps> = ({ onSubmit, onBack }) => {
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 interface OnboardingFlowProps {
-  onComplete: () => void
+  onComplete: (csvFiles?: { name: string; path?: string }[]) => void
   onClose: () => void
 }
 
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, onClose }) => {
-  const { mode } = useTheme()
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome')
   const [selectedMethod, setSelectedMethod] = useState<'sample' | 'csv' | 'database' | null>(null)
-  const [csvFile, setCsvFile] = useState<{ name: string; path?: string } | null>(null)
+  const [csvFile, setCsvFile] = useState<{ name: string; path?: string }[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [dbConfig, setDbConfig] = useState<DbConfig | null>(null)
@@ -377,8 +373,9 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, onCl
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="h-full flex flex-col justify-center gap-4"
+                className="h-full flex flex-col gap-6 overflow-y-auto custom-scrollbar"
               >
+                {/* 拖拽区域 - 更醒目 */}
                 <div
                   onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
                   onDragEnter={e => { e.preventDefault(); setIsDragging(true) }}
@@ -386,73 +383,167 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, onCl
                   onDrop={e => {
                     e.preventDefault()
                     setIsDragging(false)
-                    const file = e.dataTransfer.files[0]
-                    if (file) {
-                      const ext = file.name.split('.').pop()?.toLowerCase()
-                      if (['csv', 'xlsx', 'xls', 'json'].includes(ext || '')) {
-                        setCsvFile({ name: file.name })
-                      }
+                    const files = Array.from(e.dataTransfer.files)
+                    const validFiles = files.filter(f => {
+                      const ext = f.name.split('.').pop()?.toLowerCase()
+                      return ['csv', 'xlsx', 'xls', 'json'].includes(ext || '')
+                    })
+                    if (validFiles.length > 0) {
+                      setCsvFile(prev => [...prev, ...validFiles.map(f => ({ name: f.name }))])
                     }
                   }}
-                  className={`border-2 border-dashed rounded-xl p-10 text-center transition-all cursor-pointer ${
+                  className={`relative border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer ${
                     isDragging
-                      ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
-                      : csvFile
-                      ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
-                      : 'border-zinc-300 dark:border-zinc-700 hover:border-blue-400 dark:hover:border-blue-500'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 scale-[1.02]'
+                      : csvFile.length > 0
+                      ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20'
+                      : 'border-zinc-300 dark:border-zinc-700 hover:border-blue-400 dark:hover:border-blue-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
                   }`}
                   onClick={async () => {
                     const api = (window as any).electronAPI
                     if (api?.dialog) {
-                      const filePath = await api.dialog.openFile({
+                      const result = await api.dialog.openFile({
                         filters: [{ name: '数据文件', extensions: ['csv', 'xlsx', 'xls', 'json'] }],
+                        properties: ['openFile', 'multiSelections'] as any,
                       })
-                      if (filePath) {
-                        const name = filePath.split(/[\\/]/).pop() || filePath
-                        setCsvFile({ name, path: filePath })
+                      if (result) {
+                        const filePaths = Array.isArray(result) ? result : [result]
+                        const validFiles = filePaths.filter(p => p).map(p => ({
+                          name: (p as string).split(/[\\/]/).pop() || p as string,
+                          path: p as string,
+                        }))
+                        if (validFiles.length > 0) {
+                          setCsvFile(prev => [...prev, ...validFiles])
+                        }
                       }
                     } else {
                       fileInputRef.current?.click()
                     }
                   }}
                 >
-                  {csvFile ? (
-                    <>
-                      <div className="w-14 h-14 mx-auto mb-3 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center border border-green-200 dark:border-green-700">
-                        <FileText className="w-7 h-7 text-green-600 dark:text-green-400" />
-                      </div>
-                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{csvFile.name}</p>
-                      <p className="text-sm text-green-600 dark:text-green-400 mt-1">文件已选择，点击继续</p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-14 h-14 mx-auto mb-3 rounded-xl bg-blue-50 dark:bg-zinc-900 flex items-center justify-center border border-blue-100 dark:border-zinc-800">
-                        <FileText className="w-7 h-7 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <h4 className="font-semibold mb-1 text-zinc-900 dark:text-zinc-100">
-                        {isDragging ? '松开鼠标放入文件' : '拖拽文件到这里，或点击选择'}
-                      </h4>
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400">支持 CSV、Excel、JSON · 最大 100MB</p>
-                    </>
-                  )}
+                  {/* 动态图标 */}
+                  <div className={`w-20 h-20 mx-auto mb-4 rounded-2xl flex items-center justify-center transition-all ${
+                    isDragging
+                      ? 'bg-blue-100 dark:bg-blue-900/50 scale-110'
+                      : csvFile.length > 0
+                      ? 'bg-emerald-100 dark:bg-emerald-900/50'
+                      : 'bg-zinc-100 dark:bg-zinc-800'
+                  }`}>
+                    <FileText className={`w-10 h-10 ${
+                      isDragging ? 'text-blue-600' : csvFile.length > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-500 dark:text-zinc-400'
+                    }`} />
+                  </div>
+
+                  {/* 标题 */}
+                  <h4 className="text-lg font-semibold mb-2 text-zinc-900 dark:text-zinc-100">
+                    {isDragging
+                      ? '🎉 松开鼠标放入文件'
+                      : csvFile.length > 0
+                      ? `已选择 ${csvFile.length} 个文件`
+                      : '📁 拖拽文件到这里，或点击选择'}
+                  </h4>
+
+                  {/* 说明 */}
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">
+                    {csvFile.length > 0
+                      ? '可以继续添加更多文件'
+                      : '支持批量导入多个文件'}
+                  </p>
+
+                  {/* 文件格式标签 */}
+                  <div className="flex justify-center gap-2 flex-wrap">
+                    {['CSV', 'Excel', 'JSON'].map(format => (
+                      <span key={format} className="px-3 py-1 text-xs rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                        {format}
+                      </span>
+                    ))}
+                    <span className="px-3 py-1 text-xs rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                      最大 100MB/文件
+                    </span>
+                  </div>
+
                   <input
                     ref={fileInputRef}
                     type="file"
                     className="hidden"
                     accept=".csv,.xlsx,.xls,.json"
+                    multiple
                     onChange={e => {
-                      const file = e.target.files?.[0]
-                      if (file) setCsvFile({ name: file.name })
+                      const files = e.target.files
+                      if (files) {
+                        const validFiles = Array.from(files).filter(f => {
+                          const ext = f.name.split('.').pop()?.toLowerCase()
+                          return ['csv', 'xlsx', 'xls', 'json'].includes(ext || '')
+                        })
+                        if (validFiles.length > 0) {
+                          setCsvFile(prev => [...prev, ...validFiles.map(f => ({ name: f.name }))])
+                        }
+                      }
                     }}
                   />
                 </div>
 
-                {csvFile && (
+                {/* 文件列表 */}
+                {csvFile.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                        已选择的文件 ({csvFile.length})
+                      </span>
+                      <button
+                        onClick={() => setCsvFile([])}
+                        className="text-xs text-red-500 hover:text-red-600 transition-colors"
+                      >
+                        清空全部
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {csvFile.map((file, index) => (
+                        <div
+                          key={`${file.name}-${index}`}
+                          className="group flex items-center justify-between p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-100/50 dark:hover:bg-emerald-900/20 transition-colors"
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center flex-shrink-0">
+                              <FileText className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                                {file.name}
+                              </p>
+                              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                {file.path ? file.path.split(/[\\/]/).slice(-2, -1)[0] : '本地文件'}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setCsvFile(prev => prev.filter((_, i) => i !== index))
+                            }}
+                            className="ml-3 p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-400 hover:text-red-500 transition-all"
+                            title="移除"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 继续按钮 */}
+                {csvFile.length > 0 && (
                   <button
                     onClick={() => setCurrentStep('complete')}
-                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium transition-colors"
+                    className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 flex items-center justify-center gap-2"
                   >
-                    继续
+                    <span>开始分析</span>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
                   </button>
                 )}
               </motion.div>
@@ -519,14 +610,18 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, onCl
                 </motion.div>
                 <div>
                   <h3 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-zinc-100">准备就绪！</h3>
-                  <p className="text-zinc-600 dark:text-zinc-400">你现在可以开始使用 AI 分析数据了</p>
+                  <p className="text-zinc-600 dark:text-zinc-400">
+                    {csvFile.length > 0
+                      ? `已成功导入 ${csvFile.length} 个数据表，前往主界面开始分析`
+                      : '设置完成，前往主界面开始使用'}
+                  </p>
                 </div>
                 <div className="flex gap-3">
                   <button
-                    onClick={onComplete}
+                    onClick={() => onComplete(csvFile)}
                     className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-500 dark:to-indigo-500 hover:opacity-90 text-white rounded-xl font-medium transition-all"
                   >
-                    开始分析
+                    {csvFile.length > 0 ? `进入主界面（已导入 ${csvFile.length} 个表格）` : '进入主界面'}
                   </button>
                   <button
                     onClick={() => setCurrentStep('welcome')}

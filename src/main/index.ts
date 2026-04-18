@@ -22,6 +22,8 @@ import { dataAnonymizer } from './security/anonymization'
 import { auditLoggerV2 } from './security/audit-log-v2'
 import { analyzeEngine } from './ai/analyze-engine'
 import { initFunnelService } from './funnel-handlers'
+import { analyzeTableSchema } from './analysis/table-schema-analyzer'
+import { ANALYSIS_TEMPLATES, CATEGORY_LABELS } from './analysis/template-library'
 import { chatHistoryStore } from './storage/chat-history-store'
 import { memoryManager } from './memory/memory-manager'
 import { queryTemplateManager } from './templates/template-manager'
@@ -181,6 +183,11 @@ ipcMain.handle('ping', () => 'pong')
 // AI 服务配置
 ipcMain.handle('ai:init', (_, config: AIConfig) => {
   return initAIService(config)
+})
+
+// 检查 AI 是否已就绪
+ipcMain.handle('ai:isReady', () => {
+  return !!aiChatManager
 })
 
 // AI 对话
@@ -490,18 +497,94 @@ ipcMain.handle('schema:describe', async (_, config: any) => {
 
 // 自然语言转 SQL
 ipcMain.handle('nl:generate-sql', async (_, databaseType: any, query: string, context?: any) => {
-  if (!nl2sqlService) {
-    throw new Error('AI 服务未初始化')
+  const selectedTables: string[] = context?.selectedTables || []
+
+  // ── 有 AI：全功能路径 ──────────────────────────────────────────
+  if (nl2sqlService) {
+    try {
+      // 把真实 schema 注入到 context，让 AI 看到实际表结构
+      const enrichedContext = { ...context }
+      if (context?.databaseConfig) {
+        // 如果用户指定了关注的表，只传这些表的 schema（减少 token 消耗）
+        const filteredDesc = selectedTables.length > 0
+          ? schemaManager.generateSchemaDescriptionForTables(context.databaseConfig, selectedTables)
+          : schemaManager.generateSchemaDescription(context.databaseConfig)
+        if (filteredDesc && filteredDesc !== '暂无 Schema 信息') {
+          enrichedContext.schemaDescription = filteredDesc
+        }
+      }
+      const result = await nl2sqlService.generateSQL(databaseType, query, enrichedContext)
+      return {
+        success: true,
+        sql: result.sql,
+        explanation: result.explanation,
+        confidence: result.confidence,
+        data: result,
+        usingAI: true,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'SQL 生成失败',
+        data: null,
+      }
+    }
+  }
+
+  // ── 无 AI：规则解析路径，能力有限 ────────────────────────────
+  // 多表关联必须有 AI，直接告知用户
+  if (selectedTables.length > 1) {
+    return {
+      success: false,
+      message: '多表关联分析需要配置 AI。请前往「设置 → AI 配置」添加 API Key 后再试。',
+      needsAI: true,
+      data: null,
+    }
   }
 
   try {
-    const result = await nl2sqlService.generateSQL(databaseType, query, context)
-    return { success: true, data: result }
+    const { hybridNL2SQLService } = await import('./nl2sql/hybrid-nl2sql-service')
+
+    // 尽量从 schema 缓存中拿真实字段，提升规则解析准确率
+    let tableInfo: { tableName: string; fields: string[] } | undefined
+    const targetTable = selectedTables[0] || context?.tableName || ''
+    if (targetTable && context?.databaseConfig) {
+      try {
+        const tableSchema = schemaManager.getTableSchema(context.databaseConfig, targetTable)
+        if (tableSchema) {
+          tableInfo = {
+            tableName: targetTable,
+            fields: tableSchema.columns.map((c: any) => c.columnName),
+          }
+        }
+      } catch { /* schema 未缓存，跳过 */ }
+    }
+
+    const result = await hybridNL2SQLService.parseQuery(query, databaseType, tableInfo)
+
+    if (!result.sql) {
+      return {
+        success: false,
+        message: result.error || '无法理解此查询。未配置 AI 时仅支持基础分析，建议前往「设置」配置 AI 以获得完整能力。',
+        needsAI: true,
+        suggestions: result.suggestions,
+        data: null,
+      }
+    }
+
+    return {
+      success: true,
+      sql: result.sql,
+      explanation: `${result.explanation}（规则解析，未使用 AI）`,
+      confidence: result.confidence,
+      data: result,
+      usingAI: false,
+    }
   } catch (error) {
     return {
       success: false,
       message: error instanceof Error ? error.message : 'SQL 生成失败',
-      data: null
+      data: null,
     }
   }
 })
@@ -2061,6 +2144,55 @@ ipcMain.handle('file:read', async (_, filePath: string) => {
     return {
       success: false,
       error: error instanceof Error ? error.message : '读取文件失败',
+    }
+  }
+})
+
+// ========== 表格 Schema 智能分析 ==========
+
+// 分析单个 CSV 文件的 schema，返回表格类型 + 匹配的分析模板
+ipcMain.handle('table:analyze-schema', async (_, filePath: string, fileName: string) => {
+  try {
+    let content = ''
+    if (filePath) {
+      try {
+        content = fs.readFileSync(filePath, 'utf-8')
+      } catch {
+        // 如果路径无法读取（如拖拽时无 path），返回低置信度结果
+      }
+    }
+    const result = await analyzeTableSchema(fileName, content, aiChatManager)
+    return { success: true, data: result }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '分析失败',
+    }
+  }
+})
+
+// 获取完整的分析模板库
+ipcMain.handle('table:get-template-library', () => {
+  return {
+    success: true,
+    data: {
+      templates: ANALYSIS_TEMPLATES,
+      categoryLabels: CATEGORY_LABELS,
+    },
+  }
+})
+
+// 批量分析多张表并汇总匹配到的模板
+ipcMain.handle('table:batch-analyze', async (_, tables: Array<{ filePath: string; fileName: string }>) => {
+  try {
+    const results = await Promise.all(
+      tables.map(t => analyzeTableSchema(t.fileName, '', aiChatManager))
+    )
+    return { success: true, data: results }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '批量分析失败',
     }
   }
 })

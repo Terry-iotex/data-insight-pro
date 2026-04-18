@@ -18,6 +18,7 @@ export interface EnhancedDatabaseConfig extends DatabaseConfig {
 export interface TableSchema {
   tableName: string
   columns: ColumnSchema[]
+  foreignKeys?: ForeignKey[]
   rowCount?: number
   lastUpdated: Date
 }
@@ -27,9 +28,15 @@ export interface ColumnSchema {
   dataType: string
   nullable: boolean
   defaultValue?: any
-  description?: string  // 业务含义描述
-  sampleData?: any   // 示例数据
+  description?: string
+  sampleData?: any
   tags?: string[]
+}
+
+export interface ForeignKey {
+  columnName: string
+  referencedTable: string
+  referencedColumn: string
 }
 
 export interface DatabaseSchema {
@@ -55,11 +62,15 @@ export class SchemaManager {
     // 获取每个表的列信息
     const tableSchemas: Map<string, TableSchema> = new Map()
 
+    // 先拿外键关系（一次查询拿全库，避免 N+1）
+    const foreignKeyMap = await this.fetchForeignKeys(config).catch(() => new Map<string, ForeignKey[]>())
+
     for (const table of tables) {
       const columns = await this.fetchColumns(config, table)
       tableSchemas.set(table, {
         tableName: table,
         columns,
+        foreignKeys: foreignKeyMap.get(table) || [],
         lastUpdated: new Date(),
       })
     }
@@ -143,22 +154,43 @@ export class SchemaManager {
   }
 
   /**
-   * 生成 Schema 描述（用于 AI Prompt）
+   * 生成 Schema 描述（用于 AI Prompt）— 全量
    */
   generateSchemaDescription(config: EnhancedDatabaseConfig): string {
+    return this.generateSchemaDescriptionForTables(config)
+  }
+
+  /**
+   * 生成指定表的 Schema 描述（可按 selectedTables 过滤，减少 token 消耗）
+   */
+  generateSchemaDescriptionForTables(
+    config: EnhancedDatabaseConfig,
+    tableNames?: string[],
+  ): string {
     const schema = this.getSchema(config)
     if (!schema) return '暂无 Schema 信息'
 
-    let description = `【数据库】${schema.databaseType} @ ${schema.host}\n`
+    let description = `数据库类型：${schema.databaseType}\n`
 
     schema.schemas.forEach((table, tableName) => {
-      description += `\n【表名】${tableName}\n`
-      description += `字段：\n`
+      // 如果指定了 selectedTables，只输出这些表
+      if (tableNames && tableNames.length > 0 && !tableNames.includes(tableName)) return
 
-      table.columns.forEach(column => {
-        const desc = column.description || '无描述'
-        description += `  - ${column.columnName} (${column.dataType}): ${desc}\n`
+      description += `\n表名：${tableName}\n字段列表：\n`
+      table.columns.forEach(col => {
+        const desc = col.description ? `（${col.description}）` : ''
+        const nullable = col.nullable ? ', 可为空' : ''
+        description += `  ${col.columnName}  类型:${col.dataType}${nullable}${desc}\n`
       })
+
+      // 输出外键关系（如果已缓存）
+      const fks = (table as any).foreignKeys as ForeignKey[] | undefined
+      if (fks && fks.length > 0) {
+        description += `外键关联：\n`
+        fks.forEach(fk => {
+          description += `  ${fk.columnName} → ${fk.referencedTable}.${fk.referencedColumn}\n`
+        })
+      }
     })
 
     return description
@@ -373,6 +405,87 @@ export class SchemaManager {
       default:
         throw new Error(`不支持的数据库类型: ${type}`)
     }
+  }
+
+  /**
+   * 一次性获取全库外键关系（MySQL / PostgreSQL 支持）
+   * 返回 Map<tableName, ForeignKey[]>
+   */
+  private async fetchForeignKeys(
+    config: EnhancedDatabaseConfig,
+  ): Promise<Map<string, ForeignKey[]>> {
+    const { type, host, port, database, username, password, ssl } = config
+    const result = new Map<string, ForeignKey[]>()
+
+    if (type === 'MySQL') {
+      const mysql = await import('mysql2/promise')
+      const conn = await mysql.createConnection({
+        host, port, database, user: username, password,
+        ssl: ssl ? {} : undefined,
+      })
+      try {
+        const [rows] = await conn.query<any[]>(`
+          SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+          FROM information_schema.KEY_COLUMN_USAGE
+          WHERE TABLE_SCHEMA = ?
+            AND REFERENCED_TABLE_NAME IS NOT NULL
+          ORDER BY TABLE_NAME, COLUMN_NAME
+        `, [database])
+
+        for (const row of rows) {
+          const fk: ForeignKey = {
+            columnName: row.COLUMN_NAME,
+            referencedTable: row.REFERENCED_TABLE_NAME,
+            referencedColumn: row.REFERENCED_COLUMN_NAME,
+          }
+          const list = result.get(row.TABLE_NAME) || []
+          list.push(fk)
+          result.set(row.TABLE_NAME, list)
+        }
+      } finally {
+        await conn.end()
+      }
+    } else if (type === 'PostgreSQL') {
+      const { Client } = await import('pg')
+      const client = new Client({
+        host, port, database, user: username, password,
+        ssl: ssl ? { rejectUnauthorized: false } : undefined,
+      })
+      await client.connect()
+      try {
+        const res = await client.query(`
+          SELECT
+            tc.table_name,
+            kcu.column_name,
+            ccu.table_name  AS referenced_table,
+            ccu.column_name AS referenced_column
+          FROM information_schema.table_constraints AS tc
+          JOIN information_schema.key_column_usage AS kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+          JOIN information_schema.constraint_column_usage AS ccu
+            ON ccu.constraint_name = tc.constraint_name
+            AND ccu.table_schema = tc.table_schema
+          WHERE tc.constraint_type = 'FOREIGN KEY'
+            AND tc.table_schema = 'public'
+        `)
+        for (const row of res.rows) {
+          const fk: ForeignKey = {
+            columnName: row.column_name,
+            referencedTable: row.referenced_table,
+            referencedColumn: row.referenced_column,
+          }
+          const list = result.get(row.table_name) || []
+          list.push(fk)
+          result.set(row.table_name, list)
+        }
+      } finally {
+        await client.end()
+      }
+    }
+    // MongoDB 没有关系型外键，跳过
+
+    return result
   }
 }
 

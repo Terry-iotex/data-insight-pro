@@ -7,22 +7,23 @@ import { V0DataSourcesPage } from './pages/V0DataSourcesPage'
 import { V0DictionaryPage } from './pages/V0DictionaryPage'
 import { V0HistoryPage } from './pages/V0HistoryPage'
 import { V0SettingsPage } from './pages/V0SettingsPage'
-import { DatabaseProvider } from './stores/DatabaseStore'
+import { DatabaseProvider, useDatabase, DatabaseConfig, TableSchemaInfo } from './stores/DatabaseStore'
+import { ProjectProvider } from './stores/ProjectStore'
 import ChartProvider from './stores/ChartStore'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
 import { PerformanceMonitorProvider } from './contexts/PerformanceMonitorContext'
+import { AnalysisTemplateProvider, useAnalysisTemplates } from './stores/AnalysisTemplateStore'
 import { OnboardingFlow } from './components/OnboardingFlow'
-import { NotificationCenter } from './components/NotificationCenter'
 
 type PageType = 'dashboard' | 'analysis' | 'charts' | 'datasources' | 'dictionary' | 'history' | 'settings'
 
-// 内部App内容组件 - 在ThemeProvider内部使用
 function AppContent() {
   const [activePage, setActivePage] = useState<PageType>('dashboard')
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const { addDatabase, updateDatabase } = useDatabase()
+  const { setRecommendedIds, setUnconfirmedSourceIds } = useAnalysisTemplates()
 
-  // 检查是否首次运行
   React.useEffect(() => {
     const hasCompletedOnboarding = localStorage.getItem('onboarding_completed')
     if (!hasCompletedOnboarding) {
@@ -30,63 +31,130 @@ function AppContent() {
     }
   }, [])
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = async (csvFiles?: { name: string; path?: string }[]) => {
+    if (csvFiles && csvFiles.length > 0) {
+      // 先批量添加数据源（无 schemaInfo）
+      const configs: DatabaseConfig[] = csvFiles.map((file, index) => ({
+        id: `file-${Date.now()}-${index}`,
+        name: file.name,
+        type: 'file' as any,
+        host: file.path || '',
+        port: 0,
+        database: file.name,
+        username: '',
+        connected: true,
+      }))
+      addDatabase(configs)
+
+      // 异步在后台分析每个文件的 schema
+      analyzeImportedFiles(configs, csvFiles)
+    }
     localStorage.setItem('onboarding_completed', 'true')
     setShowOnboarding(false)
   }
 
-  // 根据页面类型渲染对应的页面
+  const analyzeImportedFiles = async (
+    configs: DatabaseConfig[],
+    files: { name: string; path?: string }[],
+  ) => {
+    const api = (window as any).electronAPI
+    if (!api?.tableAnalysis) return
+
+    const allRecommended = new Set<string>()
+    const unconfirmedIds: string[] = []
+
+    await Promise.all(
+      configs.map(async (config, i) => {
+        try {
+          const file = files[i]
+          const res = await api.tableAnalysis.analyzeSchema(file.path || '', file.name)
+          if (res?.success && res.data) {
+            const info: TableSchemaInfo = {
+              tableType: res.data.tableType,
+              confidence: res.data.confidence,
+              suggestedTemplateIds: res.data.suggestedTemplateIds,
+              needsConfirmation: res.data.needsConfirmation,
+              analysisSource: res.data.analysisSource,
+              columns: res.data.columns,
+            }
+            // 把 schema 信息写回数据源
+            updateDatabase(config.id, { schemaInfo: info })
+
+            // 汇总推荐模板
+            info.suggestedTemplateIds.forEach(id => allRecommended.add(id))
+
+            if (info.needsConfirmation) {
+              unconfirmedIds.push(config.id)
+            }
+          }
+        } catch {
+          // 分析失败不影响主流程
+        }
+      })
+    )
+
+    setRecommendedIds(Array.from(allRecommended))
+    setUnconfirmedSourceIds(unconfirmedIds)
+  }
+
+  const handleNavigate = (page: PageType | string) => {
+    if (page === '__show_onboarding__') {
+      localStorage.removeItem('onboarding_completed')
+      setShowOnboarding(true)
+      return
+    }
+    setActivePage(page as PageType)
+  }
+
   const renderPage = () => {
     switch (activePage) {
       case 'dashboard':
-        return <V0DashboardPage onNavigate={setActivePage} />
+        return <V0DashboardPage onNavigate={handleNavigate} />
       case 'analysis':
-        return <V0AnalysisPage onNavigate={setActivePage} />
+        return <V0AnalysisPage onNavigate={handleNavigate} />
       case 'charts':
-        return <V0ChartsPage onNavigate={setActivePage} />
+        return <V0ChartsPage onNavigate={handleNavigate} />
       case 'datasources':
-        return <V0DataSourcesPage onNavigate={setActivePage} />
+        return <V0DataSourcesPage onNavigate={handleNavigate} />
       case 'dictionary':
-        return <V0DictionaryPage onNavigate={setActivePage} />
+        return <V0DictionaryPage onNavigate={handleNavigate} />
       case 'history':
-        return <V0HistoryPage onNavigate={setActivePage} />
+        return <V0HistoryPage onNavigate={handleNavigate} />
       case 'settings':
-        return <V0SettingsPage onNavigate={setActivePage} />
+        return <V0SettingsPage onNavigate={handleNavigate} />
       default:
-        return <V0DashboardPage onNavigate={setActivePage} />
+        return <V0DashboardPage onNavigate={handleNavigate} />
     }
   }
 
   return (
     <ErrorBoundary>
-      {/* 数据接入引导 */}
       {showOnboarding && (
         <OnboardingFlow
           onComplete={handleOnboardingComplete}
           onClose={() => setShowOnboarding(false)}
         />
       )}
-
-      {/* 页面导航 - 通过 prop 传递给子组件 */}
-      {React.cloneElement(renderPage() as React.ReactElement, {
-        onNavigate: setActivePage
-      })}
+      {renderPage()}
     </ErrorBoundary>
   )
 }
 
-// App根组件 - 包含Provider
 function App() {
   return (
     <ThemeProvider>
       <DatabaseProvider>
-        <ChartProvider>
-          <KeyboardShortcutsProvider>
-            <PerformanceMonitorProvider>
-              <AppContent />
-            </PerformanceMonitorProvider>
-          </KeyboardShortcutsProvider>
-        </ChartProvider>
+        <ProjectProvider>
+          <AnalysisTemplateProvider>
+            <ChartProvider>
+              <KeyboardShortcutsProvider>
+                <PerformanceMonitorProvider>
+                  <AppContent />
+                </PerformanceMonitorProvider>
+              </KeyboardShortcutsProvider>
+            </ChartProvider>
+          </AnalysisTemplateProvider>
+        </ProjectProvider>
       </DatabaseProvider>
     </ThemeProvider>
   )

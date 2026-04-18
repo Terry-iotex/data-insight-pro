@@ -8,7 +8,6 @@ import { DatabaseType } from '../../shared/types'
 import { metricLayer } from '../metrics/layer'
 import { metricLayerV2 } from '../metrics/layer-v2'
 import { schemaManager } from '../database/schema-manager'
-import { confidenceEngine } from '../trust/confidence-engine'
 import { auditLoggerV2 } from '../security/audit-log-v2'
 
 export interface TableSchema {
@@ -137,7 +136,7 @@ export class NaturalLanguageQueryService {
    * 使用 Metric V2 生成 SQL（带约束检查）
    */
   private async generateSQLWithMetricV2(
-    databaseType: DatabaseType,
+    _databaseType: DatabaseType,
     naturalLanguage: string,
     context: any,
     metricV2: any
@@ -207,10 +206,12 @@ export class NaturalLanguageQueryService {
     context?: {
       recentQueries?: string[]
       timeRange?: string
-      metric?: string  // 指标 ID
-      dimensions?: string[]  // 维度
-      groupBy?: string  // 分组字段
-      databaseConfig?: any  // 数据库配置，用于获取 schema
+      metric?: string
+      dimensions?: string[]
+      groupBy?: string
+      databaseConfig?: any
+      schemaDescription?: string  // pre-filtered schema from handler
+      selectedTables?: string[]   // tables selected by user
     }
   ): Promise<SQLGenerationResult> {
     // STEP 0: 优先检查 Metric V2（带约束的指标层）
@@ -238,14 +239,16 @@ export class NaturalLanguageQueryService {
     // 3. 获取 schema 描述（如果有数据库配置，使用缓存的 schema）
     let schemaDesc = this.getSchemaDescription(databaseType)
 
-    if (context?.databaseConfig) {
+    // 优先使用 handler 层已过滤好的 schemaDescription（含 FK 关系）
+    if (context?.schemaDescription) {
+      schemaDesc = context.schemaDescription
+    } else if (context?.databaseConfig) {
       try {
         const cachedSchema = schemaManager.getSchema(context.databaseConfig)
         if (cachedSchema) {
           schemaDesc = schemaManager.generateSchemaDescription(context.databaseConfig)
         }
-      } catch (error) {
-        // 如果获取缓存 schema 失败，使用默认的
+      } catch {
         console.warn('获取缓存 schema 失败，使用默认 schema')
       }
     }

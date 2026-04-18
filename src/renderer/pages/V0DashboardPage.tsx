@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { PageLayout } from "../components/v0-layout/PageLayout"
 import { QueryInput } from "../components/v0-dashboard/QueryInput"
 import { StatsCards } from "../components/v0-dashboard/StatsCards"
@@ -10,8 +10,11 @@ import { QuickActions } from "../components/v0-dashboard/QuickActions"
 import { RecentQueries } from "../components/v0-dashboard/RecentQueries"
 import { EmptyStates } from "../components/v0-dashboard/EmptyStates"
 import { useDatabase } from "../stores/DatabaseStore"
+import { useProjects } from "../stores/ProjectStore"
 import { addQueryToHistory } from "../stores/QueryHistoryStore"
 import { showToast } from "../lib/download"
+import { cn } from "../lib/utils"
+import { AlertTriangle, ChevronDown, Check, Database, Zap, FolderOpen } from "lucide-react"
 
 interface QueryResult {
   columns: string[]
@@ -33,17 +36,40 @@ interface V0DashboardPageProps {
 
 export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
   const { databases } = useDatabase()
+  const { projects } = useProjects()
   const connectedDatabases = databases.filter((db) => db.connected)
   const hasDataSource = connectedDatabases.length > 0
 
   const [isLoading, setIsLoading] = useState(false)
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null)
   const [queryError, setQueryError] = useState<string | null>(null)
+  const [pendingQuery, setPendingQuery] = useState<string | undefined>(undefined)
   const [chartRecommendation, setChartRecommendation] = useState<ChartRecommendation | null>(null)
   const [aiInsights, setAiInsights] = useState<any[]>([])
   const [isInsightLoading, setIsInsightLoading] = useState(false)
+  // 多选表格：空数组 = 全部
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  // AI 是否已配置
+  const [hasAI, setHasAI] = useState(false)
+  // 分析目标选择器下拉状态
+  const [selectorOpen, setSelectorOpen] = useState(false)
+  const selectorRef = useRef<HTMLDivElement>(null)
 
-  // 监听来自 RecentQueries 的重新运行事件
+  useEffect(() => {
+    window.electronAPI.ai.isReady().then(setHasAI).catch(() => setHasAI(false))
+  }, [])
+
+  // 点击外部关闭下拉
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (selectorRef.current && !selectorRef.current.contains(e.target as Node)) {
+        setSelectorOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   useEffect(() => {
     const handler = (e: Event) => {
       const query = (e as CustomEvent).detail as string
@@ -51,7 +77,13 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
     }
     window.addEventListener("rerun-query", handler)
     return () => window.removeEventListener("rerun-query", handler)
-  }, [connectedDatabases])
+  }, [connectedDatabases, selectedIds, hasAI])
+
+  const toggleSource = (id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
 
   const handleQuery = async (query: string) => {
     if (!query.trim()) return
@@ -60,7 +92,20 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
       return
     }
 
-    const db = connectedDatabases[0]
+    const isMultiSelect = selectedIds.length > 1
+
+    // 无 AI + 多表：直接拦截
+    if (isMultiSelect && !hasAI) {
+      setQueryError("多表关联分析需要配置 AI。请前往「设置」添加 AI API Key，或只选择单个数据表。")
+      return
+    }
+
+    // 确定主目标数据库
+    const primaryDb = selectedIds.length > 0
+      ? (connectedDatabases.find(d => d.id === selectedIds[0]) || connectedDatabases[0])
+      : connectedDatabases[0]
+    const db = primaryDb
+
     setIsLoading(true)
     setQueryError(null)
     setQueryResult(null)
@@ -71,9 +116,29 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
 
     try {
       // Step 1: 自然语言 → SQL
-      const sqlResult = await window.electronAPI.nl.generateSQL(db.type, query, { databaseName: db.database })
+      const selectedTableNames = selectedIds.length > 0
+        ? selectedIds
+            .map(id => connectedDatabases.find(d => d.id === id)?.name)
+            .filter(Boolean) as string[]
+        : []
+
+      const nlContext: Record<string, any> = {
+        databaseName: db.database,
+        databaseConfig: db,
+        selectedTables: selectedTableNames,
+      }
+      if (selectedIds.length === 1) {
+        nlContext.tableName = db.name
+      }
+
+      const sqlResult = await window.electronAPI.nl.generateSQL(db.type, query, nlContext)
+
       if (!sqlResult.success || !sqlResult.sql) {
-        throw new Error(sqlResult.error || "AI 生成 SQL 失败，请检查 AI 配置")
+        // 区分"需要AI"的错误和其他错误
+        if (sqlResult.needsAI) {
+          throw new Error(sqlResult.message || "此查询需要 AI 支持，请前往设置配置 API Key")
+        }
+        throw new Error(sqlResult.error || sqlResult.message || "SQL 生成失败，请检查 AI 配置")
       }
 
       const generatedSQL = sqlResult.sql
@@ -88,42 +153,43 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
         throw new Error(dbResult.error || "查询执行失败")
       }
 
+      // handler 可能将数据包在 data 字段里，也可能直接展开
+      const resultData = dbResult.data || dbResult
       const duration = Date.now() - startTime
       const result: QueryResult = {
-        columns: dbResult.columns || [],
-        rows: dbResult.rows || [],
-        rowCount: dbResult.rowCount ?? (dbResult.rows?.length || 0),
+        columns: resultData.columns || [],
+        rows: resultData.rows || [],
+        rowCount: resultData.rowCount ?? (resultData.rows?.length || 0),
         duration,
         sql: finalSQL,
       }
       setQueryResult(result)
 
-      // Step 4: 图表推荐（异步，不阻塞结果展示）
-      window.electronAPI.charts.recommend(dbResult).then((rec: any) => {
+      // Step 4: 图表推荐（异步）
+      window.electronAPI.charts.recommend(resultData).then((rec: any) => {
         if (rec?.type) setChartRecommendation(rec)
       }).catch(() => {})
 
-      // Step 5: AI 洞察（异步）
-      setIsInsightLoading(true)
-      window.electronAPI.ai.chat(
-        `根据以下查询结果给出3条简短的数据洞察，每条不超过40字，直接返回JSON数组格式：[{"title":"...","content":"...","type":"trend|warning|suggestion"}]\n\n查询：${query}\n数据行数：${result.rowCount}\nSQL：${finalSQL}`,
-      ).then((res: any) => {
-        try {
-          const text = typeof res === 'string' ? res : (res?.content || res?.message || '')
-          const match = text.match(/\[[\s\S]*\]/)
-          if (match) {
-            const parsed = JSON.parse(match[0])
-            setAiInsights(Array.isArray(parsed) ? parsed.slice(0, 3) : [])
+      // Step 5: AI 洞察（仅在 AI 已配置时）
+      if (hasAI) {
+        setIsInsightLoading(true)
+        window.electronAPI.ai.chat(
+          `根据以下查询结果给出3条简短的数据洞察，每条不超过40字，直接返回JSON数组格式：[{"title":"...","content":"...","type":"trend|warning|suggestion"}]\n\n查询：${query}\n数据行数：${result.rowCount}\nSQL：${finalSQL}`,
+        ).then((res: any) => {
+          try {
+            const text = typeof res === 'string' ? res : (res?.content || res?.message || '')
+            const match = text.match(/\[[\s\S]*\]/)
+            if (match) {
+              const parsed = JSON.parse(match[0])
+              setAiInsights(Array.isArray(parsed) ? parsed.slice(0, 3) : [])
+            }
+          } catch {
+            // 解析失败静默处理
           }
-        } catch {
-          // 解析失败静默处理
-        }
-      }).catch(() => {}).finally(() => setIsInsightLoading(false))
+        }).catch(() => {}).finally(() => setIsInsightLoading(false))
+      }
 
-      // 记录到查询历史
-      const durationStr = `${duration}ms`
-      addQueryToHistory(query, "success", result.rowCount, durationStr)
-
+      addQueryToHistory(query, "success", result.rowCount, `${duration}ms`)
     } catch (err: any) {
       const errorMsg = err?.message || "查询失败"
       setQueryError(errorMsg)
@@ -133,6 +199,9 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
       setIsLoading(false)
     }
   }
+
+  const isMultiSelected = selectedIds.length > 1
+  const showMultiTableWarning = isMultiSelected && !hasAI
 
   return (
     <PageLayout activeItem="query" onNavigate={onNavigate}>
@@ -146,36 +215,160 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
         </p>
       </div>
 
+      {/* 分析目标选择器 — 下拉菜单 */}
+      {hasDataSource && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground flex-shrink-0">分析目标：</span>
+            <div className="relative flex-1 min-w-0 max-w-xs" ref={selectorRef}>
+              {/* 触发按钮 */}
+              <button
+                onClick={() => setSelectorOpen(!selectorOpen)}
+                className={cn(
+                  "flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium transition-all border bg-card hover:border-primary/50 text-foreground",
+                  selectorOpen ? "border-primary shadow-sm" : "border-border"
+                )}
+              >
+                <Database className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <span className="flex-1 text-left truncate">
+                  {selectedIds.length === 0
+                    ? '全部表格'
+                    : selectedIds.length === 1
+                      ? connectedDatabases.find(d => d.id === selectedIds[0])?.name || '选择的表格'
+                      : `已选 ${selectedIds.length} 个表格`}
+                </span>
+                <ChevronDown className={cn("h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform", selectorOpen && "rotate-180")} />
+              </button>
+
+              {/* 下拉菜单 */}
+              {selectorOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-20 rounded-xl border border-border bg-card shadow-lg py-1 animate-in fade-in slide-in-from-top-2 duration-150 min-w-[220px]">
+                  {/* 全部表格 */}
+                  <button
+                    onClick={() => { setSelectedIds([]); setSelectorOpen(false) }}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/50",
+                      selectedIds.length === 0 ? "text-primary font-medium" : "text-foreground"
+                    )}
+                  >
+                    {selectedIds.length === 0 && <Check className="h-3.5 w-3.5 flex-shrink-0" />}
+                    {selectedIds.length !== 0 && <span className="w-3.5 h-3.5 flex-shrink-0" />}
+                    <span>全部表格</span>
+                  </button>
+
+                  <div className="mx-3 my-1 border-t border-border" />
+
+                  {/* 按项目分组 */}
+                  {projects.map((project) => {
+                    const projectDbs = connectedDatabases.filter(db => (db.projectId || 'default') === project.id)
+                    if (projectDbs.length === 0) return null
+                    return (
+                      <div key={project.id}>
+                        <div className="flex items-center gap-1.5 px-3 py-1.5">
+                          <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{project.name}</span>
+                        </div>
+                        {projectDbs.map((db) => {
+                          const isSelected = selectedIds.includes(db.id)
+                          return (
+                            <button
+                              key={db.id}
+                              onClick={() => toggleSource(db.id)}
+                              className={cn(
+                                "w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/50",
+                                isSelected ? "text-primary font-medium" : "text-foreground"
+                              )}
+                            >
+                              {isSelected ? <Check className="h-3.5 w-3.5 flex-shrink-0" /> : <span className="w-3.5 h-3.5 flex-shrink-0" />}
+                              <Database className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              <span className="truncate">{db.name}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 一键概览 */}
+            <button
+              onClick={() =>
+                selectedIds.length === 1
+                  ? handleQuery('对这张表做一个基础统计分析，包括总记录数、主要字段的分布情况')
+                  : handleQuery('对所有数据表做基础统计分析，列出每张表的记录数')
+              }
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              {selectedIds.length === 0 ? '全部分析' : '一键概览'}
+            </button>
+          </div>
+
+          {/* 多表无 AI 警告 */}
+          {showMultiTableWarning && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>
+                多表关联分析需要 AI 支持。
+                <button
+                  onClick={() => onNavigate?.('settings')}
+                  className="ml-1 underline underline-offset-2 hover:opacity-80"
+                >
+                  前往设置配置 AI
+                </button>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Query Input */}
-      <QueryInput onSubmit={handleQuery} isLoading={isLoading} />
+      <QueryInput
+        onSubmit={handleQuery}
+        isLoading={isLoading}
+        pendingQuery={pendingQuery}
+        onPendingQueryConsumed={() => setPendingQuery(undefined)}
+      />
 
       {!hasDataSource ? (
-        <EmptyStates type="no-datasource" />
+        <EmptyStates type="no-datasource" onAction={() => onNavigate?.('datasources')} />
       ) : (
         <>
           {/* Quick Actions */}
-          <QuickActions />
+          <QuickActions
+            onNavigate={onNavigate}
+            onQuerySelect={(q) => {
+              setPendingQuery(q)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+          />
 
           {/* 查询错误提示 */}
           {queryError && (
             <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-5 py-4 text-sm text-destructive">
               {queryError}
+              {queryError.includes('AI') && (
+                <button
+                  onClick={() => onNavigate?.('settings')}
+                  className="ml-2 underline underline-offset-2 hover:opacity-80"
+                >
+                  去设置
+                </button>
+              )}
             </div>
           )}
 
-          {/* Stats Overview — 只在有查询结果时显示 */}
-          {queryResult && (
-            <StatsCards result={queryResult} />
-          )}
+          {queryResult && <StatsCards result={queryResult} />}
 
-          {/* AI Insights */}
           <AIInsights
             hasData={!!queryResult}
             insights={aiInsights}
             isLoading={isInsightLoading}
           />
 
-          {/* Results Section */}
           {queryResult && (
             <div className="grid gap-6 lg:grid-cols-2">
               <DataPreview result={queryResult} />
@@ -183,7 +376,6 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
             </div>
           )}
 
-          {/* Recent Queries */}
           <RecentQueries />
         </>
       )}

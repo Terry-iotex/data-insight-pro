@@ -1,5 +1,5 @@
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "../v0-ui/Button"
 import { Sparkles, Send, FileText, ChevronRight, Play, Loader2 } from "lucide-react"
 import { cn } from "../../lib/utils"
@@ -33,11 +33,22 @@ const templates = [
 interface QueryInputProps {
   onSubmit?: (query: string) => void
   isLoading?: boolean
+  // 外部注入预填充内容（如点击快捷分析时）
+  pendingQuery?: string
+  onPendingQueryConsumed?: () => void
 }
 
-export function QueryInput({ onSubmit, isLoading = false }: QueryInputProps) {
+export function QueryInput({ onSubmit, isLoading = false, pendingQuery, onPendingQueryConsumed }: QueryInputProps) {
   const [query, setQuery] = useState("")
   const [showTemplates, setShowTemplates] = useState(false)
+
+  // 当外部传入 pendingQuery 时，填入输入框
+  useEffect(() => {
+    if (pendingQuery) {
+      setQuery(pendingQuery)
+      onPendingQueryConsumed?.()
+    }
+  }, [pendingQuery, onPendingQueryConsumed])
 
   const handleSubmit = () => {
     if (query.trim() && onSubmit) {

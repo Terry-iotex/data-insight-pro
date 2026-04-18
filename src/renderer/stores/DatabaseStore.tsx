@@ -11,10 +11,23 @@ interface DatabaseContextType {
   currentDatabase: DatabaseType
   setDatabaseType: (type: DatabaseType) => void
   databases: DatabaseConfig[]
-  addDatabase: (config: DatabaseConfig) => void
+  addDatabase: (config: DatabaseConfig | DatabaseConfig[]) => void
   removeDatabase: (id: string) => void
   updateDatabase: (id: string, config: Partial<DatabaseConfig>) => void
   getDatabaseById: (id: string) => DatabaseConfig | undefined
+}
+
+export interface TableSchemaInfo {
+  tableType: string
+  confidence: number
+  suggestedTemplateIds: string[]
+  needsConfirmation: boolean
+  analysisSource: 'ai' | 'heuristic'
+  columns: Array<{
+    name: string
+    sampleValues: string[]
+    inferredType: string
+  }>
 }
 
 export interface DatabaseConfig {
@@ -27,6 +40,12 @@ export interface DatabaseConfig {
   username: string
   password?: string
   connected: boolean
+  // 所属项目 id，默认为 'default'
+  projectId?: string
+  // 文件类型数据源的 schema 分析结果
+  schemaInfo?: TableSchemaInfo
+  // 用户已在数据字典中确认过该表的字段含义
+  schemaConfirmed?: boolean
 }
 
 const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined)
@@ -83,11 +102,14 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     notificationManager.success('数据库已切换', `当前使用 ${type}`)
   }
 
-  const addDatabase = (config: DatabaseConfig) => {
-    const newDatabases = [...databases, config]
-    setDatabases(newDatabases)
-    saveDatabases(newDatabases)
-    notificationManager.success('添加成功', `数据库 "${config.name}" 已添加`)
+  const addDatabase = (config: DatabaseConfig | DatabaseConfig[]) => {
+    const configs = Array.isArray(config) ? config : [config]
+    setDatabases(prev => {
+      const newDatabases = [...prev, ...configs]
+      saveDatabases(newDatabases)
+      return newDatabases
+    })
+    notificationManager.success('添加成功', `${configs.length} 个数据源已添加`)
   }
 
   const removeDatabase = (id: string) => {

@@ -21,9 +21,16 @@ import {
   Cloud,
   Laptop,
   Lightbulb,
+  ChevronDown,
+  ChevronRight,
+  MoreHorizontal,
+  FolderOpen,
+  RefreshCw,
+  Eye,
 } from "lucide-react"
 import { cn } from "../lib/utils"
 import { useDatabase } from "../stores/DatabaseStore"
+import { useProjects } from "../stores/ProjectStore"
 import { DatabaseType } from "../types/database"
 import { showToast } from "../lib/download"
 
@@ -51,7 +58,7 @@ type ConnectionScenario = "standard" | "ssh" | "cloud" | "local" | "file"
 const scenarios = [
   {
     id: "standard" as ConnectionScenario,
-    name: "标准连接",
+    name: "直连数据库",
     icon: Link,
     description: "最常用的连接方式",
     badge: "",
@@ -115,15 +122,20 @@ interface NewDatabaseForm {
 
   // 云数据库
   connectionString: string
+
+  // 所属项目
+  projectId: string
 }
 
-interface FileUploadState {
+// 支持多文件上传
+interface MultiFileUploadState {
   name: string
-  file: File | null
+  files: File[]
 }
 
 export function V0DataSourcesPage({ onNavigate }: V0Props) {
   const { databases, addDatabase, removeDatabase, updateDatabase } = useDatabase()
+  const { projects, addProject, removeProject, updateProject } = useProjects()
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedScenario, setSelectedScenario] = useState<ConnectionScenario>("standard")
   const [newSource, setNewSource] = useState<NewDatabaseForm>({
@@ -140,42 +152,74 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
     sshPassword: "",
     sshKeyPath: "",
     connectionString: "",
+    projectId: "default",
   })
-  const [fileUpload, setFileUpload] = useState<FileUploadState>({
+  const [fileUpload, setFileUpload] = useState<MultiFileUploadState>({
     name: "",
-    file: null,
+    files: [],
   })
   const [testingId, setTestingId] = useState<string | null>(null)
+  const [refreshingId, setRefreshingId] = useState<string | null>(null)
   const [editingSource, setEditingSource] = useState<DatabaseConfig | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<DatabaseConfig | null>(null)
+  const [previewDb, setPreviewDb] = useState<DatabaseConfig | null>(null)
+  const [previewData, setPreviewData] = useState<{ columns: string[]; rows: any[]; total: number } | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
-  // 分离已连接和未连接的数据源
-  const connectedSources = databases.filter((db) => db.connected)
-  const otherSources = databases.filter((db) => !db.connected)
+  // 项目折叠状态
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
+  // 项目管理 popover
+  const [projectMenuOpen, setProjectMenuOpen] = useState<string | null>(null)
+  // 项目重命名内联编辑
+  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState("")
 
   // 添加数据源
   const handleAdd = () => {
     if (selectedScenario === "file") {
-      if (!fileUpload.file || !fileUpload.name) {
+      if (fileUpload.files.length === 0 || !fileUpload.name) {
         showToast("请选择文件并输入名称", "error")
         return
       }
-      if (fileUpload.file.size > MAX_FILE_SIZE) {
+      // 检查第一个文件的大小（后续文件已在选择时验证）
+      if (fileUpload.files[0].size > MAX_FILE_SIZE) {
         showToast(`文件大小超过限制（最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）`, "error")
         return
       }
-      const config = {
-        id: `file-${Date.now()}`,
-        name: fileUpload.name,
-        type: "file" as DatabaseType,
-        host: `file://${fileUpload.file.name}`,
-        port: 0,
-        database: fileUpload.file.name,
-        username: "",
-        connected: true,
+      // 如果只有一个文件，保持原有逻辑
+      if (fileUpload.files.length === 1) {
+        const file = fileUpload.files[0]
+        const config = {
+          id: `file-${Date.now()}`,
+          name: fileUpload.name,
+          type: "file" as DatabaseType,
+          host: `file://${file.name}`,
+          port: 0,
+          database: file.name,
+          username: "",
+          connected: true,
+          projectId: newSource.projectId || "default",
+        }
+        addDatabase(config)
+        showToast("文件数据源已添加", "success")
+      } else {
+        // 多个文件：批量添加
+        fileUpload.files.forEach((file, index) => {
+          const config = {
+            id: `file-${Date.now()}-${index}`,
+            name: fileUpload.name + (fileUpload.files.length > 1 ? ` (${index + 1})` : ""),
+            type: "file" as DatabaseType,
+            host: `file://${file.name}`,
+            port: 0,
+            database: file.name,
+            username: "",
+            connected: true,
+            projectId: newSource.projectId || "default",
+          }
+          addDatabase(config)
+        })
+        showToast(`已添加 ${fileUpload.files.length} 个文件数据源`, "success")
       }
-      addDatabase(config)
-      showToast("文件数据源已添加", "success")
       setShowAddModal(false)
       resetForm()
       return
@@ -197,6 +241,7 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
         database: "",
         username: "",
         connected: false,
+        projectId: newSource.projectId || "default",
       }
       addDatabase(config)
       showToast("云数据库已添加", "success")
@@ -215,6 +260,7 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
         username: newSource.username || "",
         password: newSource.password || "",
         connected: false,
+        projectId: newSource.projectId || "default",
       }
       addDatabase(config)
       showToast("SSH 隧道数据源已添加", "info")
@@ -233,6 +279,7 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
         username: newSource.username || "",
         password: "",
         connected: false,
+        projectId: newSource.projectId || "default",
       }
       addDatabase(config)
       showToast("本地数据库已添加", "success")
@@ -252,6 +299,7 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
         username: newSource.username,
         password: newSource.password || "",
         connected: false,
+        projectId: newSource.projectId || "default",
       }
       addDatabase(config)
       showToast('数据库已添加，请点击"连接"按钮建立连接', "info")
@@ -263,7 +311,7 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
 
   // 重置表单
   const resetForm = () => {
-    setFileUpload({ name: "", file: null })
+    setFileUpload({ name: "", files: [] })
     setNewSource({
       name: "",
       type: "postgresql",
@@ -278,32 +326,56 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
       sshPassword: "",
       sshKeyPath: "",
       connectionString: "",
+      projectId: "default",
     })
     setSelectedScenario("standard")
   }
 
-  // 文件选择处理
+  // 文件选择处理（支持多文件）
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
-    if (selectedFile) {
-      const extension = selectedFile.name.split(".").pop()?.toLowerCase()
-      if (!["csv", "xlsx", "xls", "json", "parquet"].includes(extension || "")) {
-        showToast("支持的文件格式：CSV, Excel, JSON, Parquet", "error")
+    const selectedFiles = e.target.files
+    if (selectedFiles && selectedFiles.length > 0) {
+      const validFiles: File[] = []
+      let invalidCount = 0
+      let oversizedCount = 0
+
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i]
+        const extension = file.name.split(".").pop()?.toLowerCase()
+
+        if (!["csv", "xlsx", "xls", "json", "parquet"].includes(extension || "")) {
+          invalidCount++
+          continue
+        }
+        if (file.size > MAX_FILE_SIZE) {
+          oversizedCount++
+          continue
+        }
+        validFiles.push(file)
+      }
+
+      if (validFiles.length === 0) {
+        showToast("没有找到支持的文件", "error")
         return
       }
-      if (selectedFile.size > MAX_FILE_SIZE) {
-        showToast(`文件大小超过限制（最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）`, "error")
-        return
+
+      if (invalidCount > 0 || oversizedCount > 0) {
+        showToast(`${invalidCount} 个文件格式不支持，${oversizedCount} 个文件超过大小限制`, "warning")
       }
+
+      // 使用第一个文件名作为默认名称
+      const firstValidFile = validFiles[0]
       setFileUpload({
-        name: selectedFile.name.replace(/\.[^/.]+$/, ""),
-        file: selectedFile,
+        name: fileUpload.name || firstValidFile.name.replace(/\.[^/.]+$/, ""),
+        files: validFiles,
       })
     }
   }
 
   // 连接/断开数据库
   const handleToggleConnection = async (db: DatabaseConfig) => {
+    if (db.type === 'file') return // 文件数据源始终连接
+
     if (db.connected) {
       try {
         await window.electronAPI.database.disconnect(db)
@@ -322,13 +394,66 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
           // 连接成功后缓存 Schema，方便后续 NL2SQL
           window.electronAPI.schema.cache(db).catch(() => {})
         } else {
-          showToast(`连接失败：${result.error || '请检查连接参数'}`, "error")
+          const errMsg = result.data?.error || result.message || '请检查主机地址、端口、用户名和密码是否正确'
+          showToast(`连接失败：${errMsg}`, "error")
         }
       } catch (err: any) {
-        showToast(`连接失败：${err?.message || '网络或配置错误'}`, "error")
+        const msg = err?.message || ''
+        if (msg.includes('ECONNREFUSED')) {
+          showToast(`无法连接到 ${db.host}:${db.port}，请确认数据库服务已启动`, "error")
+        } else if (msg.includes('password') || msg.includes('authentication')) {
+          showToast(`用户名或密码不正确，请检查连接配置`, "error")
+        } else if (msg.includes('timeout') || msg.includes('ETIMEDOUT')) {
+          showToast(`连接超时，请检查网络或防火墙设置`, "error")
+        } else {
+          showToast(`连接失败：${msg || '网络或配置错误'}`, "error")
+        }
       } finally {
         setTestingId(null)
       }
+    }
+  }
+
+  // 刷新 Schema 缓存
+  const handleRefreshSchema = async (db: DatabaseConfig) => {
+    setRefreshingId(db.id)
+    try {
+      await window.electronAPI.schema.cache(db)
+      showToast(`${db.name} 的 Schema 已更新`, "success")
+    } catch {
+      showToast("Schema 刷新失败，请检查连接", "error")
+    } finally {
+      setRefreshingId(null)
+    }
+  }
+
+  // 预览数据（前100行）
+  const handlePreview = async (db: DatabaseConfig) => {
+    setPreviewDb(db)
+    setPreviewData(null)
+    setPreviewLoading(true)
+    try {
+      // 获取第一张表名（文件类型跳过）
+      let tableName = ''
+      if (db.type !== 'file') {
+        try {
+          const tables = await (window as any).electronAPI.database.tables(db)
+          if (Array.isArray(tables) && tables.length > 0) tableName = tables[0]
+        } catch { /* ignore */ }
+      }
+      const sql = tableName
+        ? `SELECT * FROM "${tableName}" LIMIT 100`
+        : 'SELECT * LIMIT 100'
+      const result = await window.electronAPI.database.query(db, sql)
+      const rows = result.data?.rows || result.rows || []
+      const cols = result.data?.columns || result.columns || []
+      const rowCount = result.data?.rowCount ?? result.rowCount ?? rows.length
+      setPreviewData({ columns: cols, rows: rows.slice(0, 100), total: rowCount })
+    } catch (err: any) {
+      showToast(`数据预览失败：${err?.message || '请检查连接'}`, "error")
+      setPreviewDb(null)
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
@@ -367,6 +492,42 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
     })
   }
 
+  // 项目管理操作
+  const handleRenameProject = (id: string, currentName: string) => {
+    setRenamingProjectId(id)
+    setRenameValue(currentName)
+    setProjectMenuOpen(null)
+  }
+
+  const handleRenameConfirm = (id: string) => {
+    if (renameValue.trim()) {
+      updateProject(id, { name: renameValue.trim() })
+    }
+    setRenamingProjectId(null)
+    setRenameValue("")
+  }
+
+  const handleDeleteProject = (id: string) => {
+    // 将该项目下的数据源移到默认项目
+    databases.forEach((db) => {
+      if ((db.projectId || "default") === id) {
+        updateDatabase(db.id, { projectId: "default" })
+      }
+    })
+    removeProject(id)
+    setProjectMenuOpen(null)
+    showToast("项目已删除，数据源已移至默认项目", "success")
+  }
+
+  const toggleCollapse = (projectId: string) => {
+    setCollapsedProjects(prev => {
+      const next = new Set(prev)
+      if (next.has(projectId)) next.delete(projectId)
+      else next.add(projectId)
+      return next
+    })
+  }
+
   return (
     <PageLayout activeItem="datasources" onNavigate={onNavigate}>
       {/* Page Header */}
@@ -385,48 +546,8 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
         </Button>
       </div>
 
-      {/* Connected Data Sources */}
-      {connectedSources.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">已连接的数据源</h2>
-          <div className="grid gap-4">
-            {connectedSources.map((dataSource) => (
-              <DataSourceCard
-                key={dataSource.id}
-                db={dataSource}
-                isConnected={true}
-                testing={testingId === dataSource.id}
-                onToggleConnection={() => handleToggleConnection(dataSource)}
-                onEdit={() => setEditingSource(dataSource)}
-                onDelete={() => handleDelete(dataSource)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Historical Data Sources */}
-      {otherSources.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">历史数据源</h2>
-          <div className="grid gap-4">
-            {otherSources.map((dataSource) => (
-              <DataSourceCard
-                key={dataSource.id}
-                db={dataSource}
-                isConnected={false}
-                testing={testingId === dataSource.id}
-                onToggleConnection={() => handleToggleConnection(dataSource)}
-                onEdit={() => setEditingSource(dataSource)}
-                onDelete={() => handleDelete(dataSource)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {databases.length === 0 && (
+      {/* 按项目分组展示数据源 */}
+      {databases.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-12 text-center">
             <Database className="h-12 w-12 text-muted-foreground/50 mb-4" />
@@ -434,6 +555,175 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
             <p className="text-sm text-muted-foreground/70 mt-1">点击上方"添加数据源"按钮开始</p>
           </CardContent>
         </Card>
+      ) : (
+        <div className="space-y-6">
+          {projects.map((project) => {
+            const projectDbs = databases.filter(
+              (db) => (db.projectId || "default") === project.id
+            )
+            // 没有数据源且不是默认项目时也显示（便于管理空项目）
+            const isCollapsed = collapsedProjects.has(project.id)
+            const isMenuOpen = projectMenuOpen === project.id
+            const isRenaming = renamingProjectId === project.id
+
+            return (
+              <div key={project.id} className="space-y-3">
+                {/* 项目标题行 */}
+                <div className="flex items-center gap-2 group">
+                  <button
+                    onClick={() => toggleCollapse(project.id)}
+                    className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary transition-colors flex-1 min-w-0"
+                  >
+                    {isCollapsed
+                      ? <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      : <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                    }
+                    <FolderOpen className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                    {isRenaming ? (
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={() => handleRenameConfirm(project.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRenameConfirm(project.id)
+                          if (e.key === 'Escape') { setRenamingProjectId(null); setRenameValue("") }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-transparent border-b border-primary outline-none text-sm font-semibold text-foreground min-w-0 flex-1"
+                      />
+                    ) : (
+                      <span className="truncate">{project.name}</span>
+                    )}
+                    {!isRenaming && (
+                      <Badge variant="outline" className="text-xs flex-shrink-0 ml-1">
+                        {projectDbs.length}
+                      </Badge>
+                    )}
+                  </button>
+
+                  {/* 管理按钮 */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setProjectMenuOpen(isMenuOpen ? null : project.id)}
+                      className={cn(
+                        "p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
+                        "opacity-0 group-hover:opacity-100 focus:opacity-100",
+                        isMenuOpen && "!opacity-100 bg-muted text-foreground"
+                      )}
+                      title="管理项目"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+
+                    {/* Popover 菜单 */}
+                    {isMenuOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setProjectMenuOpen(null)}
+                        />
+                        <div className="absolute right-0 top-full mt-1 z-20 w-36 rounded-xl border border-border bg-card shadow-lg py-1 animate-in fade-in slide-in-from-top-2 duration-100">
+                          <button
+                            onClick={() => handleRenameProject(project.id, project.name)}
+                            className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors flex items-center gap-2"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                            重命名
+                          </button>
+                          {project.id !== 'default' && (
+                            <button
+                              onClick={() => handleDeleteProject(project.id)}
+                              className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              删除项目
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* 项目下的数据源列表（按类型分组） */}
+                {!isCollapsed && (
+                  <div className="pl-6 space-y-4">
+                    {projectDbs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-2">暂无数据源</p>
+                    ) : (() => {
+                      const fileDbs = projectDbs.filter(d => d.type === 'file')
+                      const realDbs = projectDbs.filter(d => d.type !== 'file')
+                      return (
+                        <>
+                          {realDbs.length > 0 && (
+                            <div className="space-y-2">
+                              {(fileDbs.length > 0) && (
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">直连数据库</p>
+                              )}
+                              <div className="grid gap-2">
+                                {realDbs.map((dataSource) => (
+                                  <DataSourceCard
+                                    key={dataSource.id}
+                                    db={dataSource}
+                                    isConnected={!!dataSource.connected}
+                                    testing={testingId === dataSource.id}
+                                    refreshing={refreshingId === dataSource.id}
+                                    onToggleConnection={() => handleToggleConnection(dataSource)}
+                                    onRefreshSchema={() => handleRefreshSchema(dataSource)}
+                                    onEdit={() => setEditingSource(dataSource)}
+                                    onDelete={() => handleDelete(dataSource)}
+                                    onPreview={() => handlePreview(dataSource)}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {fileDbs.length > 0 && (
+                            <div className="space-y-2">
+                              {(realDbs.length > 0) && (
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">文件上传</p>
+                              )}
+                              <div className="grid gap-2">
+                                {fileDbs.map((dataSource) => (
+                                  <DataSourceCard
+                                    key={dataSource.id}
+                                    db={dataSource}
+                                    isConnected={!!dataSource.connected}
+                                    testing={testingId === dataSource.id}
+                                    refreshing={refreshingId === dataSource.id}
+                                    onToggleConnection={() => handleToggleConnection(dataSource)}
+                                    onRefreshSchema={() => handleRefreshSchema(dataSource)}
+                                    onEdit={() => setEditingSource(dataSource)}
+                                    onDelete={() => handleDelete(dataSource)}
+                                    onPreview={() => handlePreview(dataSource)}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {/* 新建项目按钮 */}
+          <button
+            onClick={() => {
+              const name = `项目 ${projects.length + 1}`
+              addProject(name)
+              showToast(`已创建"${name}"`, "success")
+            }}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-1 px-2 rounded-lg hover:bg-muted"
+          >
+            <Plus className="h-4 w-4" />
+            新建项目
+          </button>
+        </div>
       )}
 
       {/* Add Data Source Modal */}
@@ -452,6 +742,8 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
           }}
           onTypeChange={handleTypeChange}
           onFileSelect={handleFileSelect}
+          projects={projects}
+          onAddProject={(name) => addProject(name)}
         />
       )}
 
@@ -459,6 +751,7 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
       {editingSource && (
         <EditDialog
           db={editingSource}
+          projects={projects}
           onSave={handleSaveEdit}
           onCancel={() => setEditingSource(null)}
         />
@@ -472,6 +765,72 @@ export function V0DataSourcesPage({ onNavigate }: V0Props) {
           onCancel={() => setDeleteConfirm(null)}
         />
       )}
+
+      {/* Data Preview Modal */}
+      {previewDb && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) { setPreviewDb(null); setPreviewData(null) } }}
+        >
+          <Card className="w-full max-w-4xl max-h-[85vh] flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div>
+                <CardTitle className="text-base">数据预览 — {previewDb.name}</CardTitle>
+                {previewData && (
+                  <CardDescription>
+                    显示前 {previewData.rows.length} 行
+                    {previewData.total > 100 && `，共 ${previewData.total} 行（已省略 ${previewData.total - previewData.rows.length} 行）`}
+                  </CardDescription>
+                )}
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setPreviewDb(null); setPreviewData(null) }}>
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto custom-scrollbar">
+              {previewLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+                  <span className="text-muted-foreground">加载数据中...</span>
+                </div>
+              ) : previewData && previewData.columns.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b border-border">
+                        {previewData.columns.map((col) => (
+                          <th key={col} className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground whitespace-nowrap bg-muted/30">
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewData.rows.map((row, i) => (
+                        <tr key={i} className="border-b border-border/50 hover:bg-muted/20">
+                          {previewData.columns.map((col) => (
+                            <td key={col} className="px-3 py-2 text-foreground whitespace-nowrap max-w-[200px] truncate">
+                              {row[col] === null || row[col] === undefined ? (
+                                <span className="text-muted-foreground italic">null</span>
+                              ) : String(row[col])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Database className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                  <p className="text-muted-foreground">暂无数据或无法预览</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">请确认数据库中有数据表</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </PageLayout>
   )
 }
@@ -481,55 +840,95 @@ interface DataSourceCardProps {
   db: DatabaseConfig
   isConnected: boolean
   testing: boolean
+  refreshing: boolean
   onToggleConnection: () => void
+  onRefreshSchema: () => void
   onEdit: () => void
   onDelete: () => void
+  onPreview: () => void
 }
 
 function DataSourceCard({
   db,
   isConnected,
   testing,
+  refreshing,
   onToggleConnection,
+  onRefreshSchema,
   onEdit,
   onDelete,
+  onPreview,
 }: DataSourceCardProps) {
-  const getDbTypeInfo = (type: string) => {
-    return dbTypes.find((t) => t.id === type) || { name: type }
+  const isFile = db.type === 'file'
+  const getDbTypeLabel = (type: string) => {
+    if (type === 'file') return '文件上传'
+    const found = dbTypes.find((t) => t.id === type)
+    return found?.name || type
   }
-
-  const typeInfo = getDbTypeInfo(db.type)
 
   return (
     <Card className={cn("overflow-hidden", isConnected && "border-primary/30")}>
-      <CardContent className="p-6">
+      <CardContent className="p-5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <Database className="h-6 w-6 text-primary" />
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 flex-shrink-0">
+              {isFile ? <File className="h-5 w-5 text-primary" /> : <Database className="h-5 w-5 text-primary" />}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-semibold text-foreground">{db.name}</h3>
+                <Badge variant="outline" className={cn(
+                  "text-xs gap-1",
+                  isFile ? "border-amber-500/30 text-amber-600 dark:text-amber-400" : "border-blue-500/30 text-blue-600 dark:text-blue-400"
+                )}>
+                  {getDbTypeLabel(db.type as string)}
+                </Badge>
+                {isFile && (
+                  <Badge variant="outline" className="text-xs border-muted text-muted-foreground">
+                    无需密码
+                  </Badge>
+                )}
                 {isConnected ? (
-                  <Badge variant="outline" className="gap-1 text-xs text-green-600 dark:text-green-500">
+                  <Badge variant="outline" className="text-xs text-green-600 dark:text-green-500">
                     已连接
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-xs text-muted-foreground">
                     未连接
                   </Badge>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground">
-                {typeInfo.name} · {db.host}:{db.port}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                数据库: {db.database}
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                {isFile ? db.database : `${db.host}:${db.port} / ${db.database}`}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 flex-shrink-0 ml-2">
+            {/* 预览数据 */}
+            {isConnected && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-primary"
+                onClick={onPreview}
+                title="预览数据"
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            )}
+            {/* 刷新 Schema：仅已连接的真实数据库显示 */}
+            {isConnected && !isFile && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-primary"
+                onClick={onRefreshSchema}
+                disabled={refreshing}
+                title="刷新表结构"
+              >
+                <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -538,8 +937,8 @@ function DataSourceCard({
                 isConnected ? "text-muted-foreground hover:text-destructive" : "text-primary hover:text-primary"
               )}
               onClick={onToggleConnection}
-              disabled={testing}
-              title={isConnected ? "断开连接" : "连接"}
+              disabled={testing || isFile}
+              title={isFile ? "文件数据源始终连接" : isConnected ? "断开连接" : "连接"}
             >
               {testing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -580,12 +979,14 @@ interface AddDataSourceModalProps {
   setScenario: (scenario: ConnectionScenario) => void
   newSource: NewDatabaseForm
   setNewSource: (form: NewDatabaseForm) => void
-  fileUpload: FileUploadState
-  setFileUpload: (state: FileUploadState) => void
+  fileUpload: MultiFileUploadState
+  setFileUpload: (state: MultiFileUploadState) => void
   onAdd: () => void
   onClose: () => void
   onTypeChange: (type: string) => void
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
+  projects: Array<{ id: string; name: string }>
+  onAddProject: (name: string) => { id: string; name: string }
 }
 
 function AddDataSourceModal({
@@ -599,7 +1000,27 @@ function AddDataSourceModal({
   onClose,
   onTypeChange,
   onFileSelect,
+  projects,
+  onAddProject,
 }: AddDataSourceModalProps) {
+  const [showNewProjectInput, setShowNewProjectInput] = useState(false)
+  const [newProjectName, setNewProjectName] = useState("")
+
+  const handleProjectChange = (value: string) => {
+    if (value === '__new__') {
+      setShowNewProjectInput(true)
+    } else {
+      setNewSource({ ...newSource, projectId: value })
+    }
+  }
+
+  const handleCreateProject = () => {
+    if (!newProjectName.trim()) return
+    const created = onAddProject(newProjectName.trim())
+    setNewSource({ ...newSource, projectId: created.id })
+    setNewProjectName("")
+    setShowNewProjectInput(false)
+  }
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
@@ -615,6 +1036,48 @@ function AddDataSourceModal({
           <CardDescription>选择您的连接场景并填写相关信息</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 overflow-y-auto custom-scrollbar flex-1">
+          {/* 所属项目选择 */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">所属项目</p>
+            {showNewProjectInput ? (
+              <div className="flex gap-2">
+                <input
+                  autoFocus
+                  placeholder="输入项目名称"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateProject()
+                    if (e.key === 'Escape') { setShowNewProjectInput(false); setNewProjectName("") }
+                  }}
+                  className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <button
+                  onClick={handleCreateProject}
+                  className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  创建
+                </button>
+                <button
+                  onClick={() => { setShowNewProjectInput(false); setNewProjectName("") }}
+                  className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            ) : (
+              <Select
+                options={[
+                  ...projects.map(p => ({ value: p.id, label: p.name })),
+                  { value: '__new__', label: '+ 新建项目' },
+                ]}
+                value={newSource.projectId || 'default'}
+                onChange={handleProjectChange}
+                placeholder="选择所属项目"
+              />
+            )}
+          </div>
+
           {/* 选择场景 */}
           <div className="space-y-3">
             <p className="text-sm font-medium text-foreground">选择连接场景</p>
@@ -1027,45 +1490,112 @@ function FileUploadForm({
   setFileUpload,
   onFileSelect,
 }: {
-  fileUpload: FileUploadState
-  setFileUpload: (state: FileUploadState) => void
+  fileUpload: MultiFileUploadState
+  setFileUpload: (state: MultiFileUploadState) => void
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
 }) {
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // 处理多文件选择（Electron dialog）
   const handlePickFile = async () => {
     const api = (window as any).electronAPI
     if (api?.dialog) {
-      const filePath: string | null = await api.dialog.openFile({
+      // Electron dialog 可能返回单个路径或路径数组
+      const result = await api.dialog.openFile({
         filters: [
           { name: '数据文件', extensions: ['csv', 'xlsx', 'xls', 'json', 'parquet'] },
         ],
+        properties: ['openFile', 'multiSelections'] as any,
       })
-      if (filePath) {
-        const name = filePath.split(/[\\/]/).pop() || filePath
-        const baseName = name.replace(/\.[^/.]+$/, '')
-        setFileUpload({ name: fileUpload.name || baseName, file: { name, size: 0, path: filePath } as any })
+
+      if (result) {
+        // 处理可能是字符串或字符串数组的情况
+        const filePaths = Array.isArray(result) ? result : [result]
+        const validFiles: File[] = []
+
+        for (const filePath of filePaths) {
+          if (!filePath) continue
+          const name = filePath.split(/[\\/]/).pop() || filePath
+          const ext = name.split('.').pop()?.toLowerCase()
+
+          if (!['csv', 'xlsx', 'xls', 'json', 'parquet'].includes(ext || '')) {
+            continue
+          }
+
+          validFiles.push({ name, size: 0, path: filePath } as unknown as File)
+        }
+
+        if (validFiles.length > 0) {
+          const firstFile = validFiles[0]
+          setFileUpload({
+            name: fileUpload.name || firstFile.name.replace(/\.[^/.]+$/, ""),
+            files: [...fileUpload.files, ...validFiles],
+          })
+        }
       }
     } else {
       fileInputRef.current?.click()
     }
   }
 
+  // 处理多文件拖入
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (!file) return
-    const ext = file.name.split('.').pop()?.toLowerCase()
-    if (!['csv', 'xlsx', 'xls', 'json', 'parquet'].includes(ext || '')) {
+
+    const droppedFiles = Array.from(e.dataTransfer.files)
+    if (droppedFiles.length === 0) return
+
+    const validFiles: File[] = []
+    let invalidCount = 0
+    let oversizedCount = 0
+
+    for (const file of droppedFiles) {
+      const ext = file.name.split('.').pop()?.toLowerCase()
+      if (!['csv', 'xlsx', 'xls', 'json', 'parquet'].includes(ext || '')) {
+        invalidCount++
+        continue
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        oversizedCount++
+        continue
+      }
+      validFiles.push(file)
+    }
+
+    if (validFiles.length === 0) {
+      showToast(invalidCount > 0 ? "没有找到支持的文件" : "所有文件都超过大小限制", "error")
       return
     }
-    if (file.size > MAX_FILE_SIZE) return
-    setFileUpload({ name: fileUpload.name || file.name.replace(/\.[^/.]+$/, ''), file })
+
+    // 显示警告信息
+    let warningMsg = ""
+    if (invalidCount > 0) warningMsg += `${invalidCount} 个文件格式不支持；`
+    if (oversizedCount > 0) warningMsg += `${oversizedCount} 个文件超过大小限制；`
+    if (warningMsg) {
+      showToast(warningMsg, "info")
+    }
+
+    // 添加到现有文件列表
+    const firstFile = validFiles[0]
+    setFileUpload({
+      name: fileUpload.name || firstFile.name.replace(/\.[^/.]+$/, ''),
+      files: [...fileUpload.files, ...validFiles],
+    })
   }
 
-  const hasFile = !!fileUpload.file
+  // 移除单个文件
+  const handleRemoveFile = (index: number) => {
+    const newFiles = [...fileUpload.files]
+    newFiles.splice(index, 1)
+    setFileUpload({
+      ...fileUpload,
+      files: newFiles,
+    })
+  }
+
+  const hasFiles = fileUpload.files.length > 0
 
   return (
     <div className="space-y-4 rounded-xl border border-border bg-muted/60 p-5 shadow-sm">
@@ -1082,7 +1612,16 @@ function FileUploadForm({
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground">选择文件</label>
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-foreground">选择文件</label>
+          {hasFiles && (
+            <span className="text-xs text-muted-foreground">
+              已选择 {fileUpload.files.length} 个文件
+            </span>
+          )}
+        </div>
+
+        {/* 拖拽区域 */}
         <div
           onClick={handlePickFile}
           onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
@@ -1090,32 +1629,57 @@ function FileUploadForm({
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           className={cn(
-            "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-4 py-8 transition-all select-none",
+            "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-4 py-6 transition-all select-none",
             isDragging ? "border-primary bg-primary/5" :
-            hasFile ? "border-green-500/50 bg-green-500/5" :
+            hasFiles ? "border-green-500/50 bg-green-500/5" :
             "border-border hover:border-primary/50 hover:bg-primary/5"
           )}
         >
-          <File className={cn("h-10 w-10 mb-2", hasFile ? "text-green-500" : "text-muted-foreground")} />
+          <File className={cn("h-8 w-8 mb-2", hasFiles ? "text-green-500" : "text-muted-foreground")} />
           <p className="text-sm font-medium text-foreground">
-            {isDragging ? "松开鼠标放入文件" : hasFile ? fileUpload.file!.name : "点击选择文件"}
+            {isDragging ? "松开鼠标放入文件" : hasFiles ? "拖入更多文件或点击重新选择" : "点击选择文件或拖入文件"}
           </p>
-          {hasFile && fileUpload.file!.size > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {(fileUpload.file!.size / 1024 / 1024).toFixed(2)} MB
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground mt-2">
-            {hasFile ? "点击重新选择" : "或拖拽文件到这里 · CSV, Excel, JSON, Parquet · 最大 100MB"}
+          <p className="text-xs text-muted-foreground mt-1">
+            {hasFiles ? `当前: ${fileUpload.files.map(f => f.name).join(", ")}` : "支持 CSV, Excel, JSON, Parquet · 最大 100MB/文件"}
           </p>
           <input
             ref={fileInputRef}
             type="file"
             className="hidden"
             accept=".csv,.xlsx,.xls,.json,.parquet"
+            multiple
             onChange={onFileSelect}
           />
         </div>
+
+        {/* 文件列表 */}
+        {hasFiles && (
+          <div className="space-y-2">
+            {fileUpload.files.map((file, index) => (
+              <div
+                key={`${file.name}-${index}`}
+                className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2"
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <File className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                  <span className="text-sm text-foreground truncate">{file.name}</span>
+                  {file.size > 0 && (
+                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                      ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleRemoveFile(index)}
+                  className="ml-2 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                  title="移除文件"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1124,12 +1688,15 @@ function FileUploadForm({
 // 编辑对话框组件
 interface EditDialogProps {
   db: DatabaseConfig
+  projects: Array<{ id: string; name: string }>
   onSave: (config: DatabaseConfig) => void
   onCancel: () => void
 }
 
-function EditDialog({ db, onSave, onCancel }: EditDialogProps) {
-  const [formData, setFormData] = useState(db)
+function EditDialog({ db, projects, onSave, onCancel }: EditDialogProps) {
+  const [formData, setFormData] = useState({ ...db, projectId: (db as any).projectId || 'default' })
+  const isFile = db.type === 'file'
+  const isCloud = (db.host || '').startsWith('postgresql://') || (db.host || '').startsWith('mysql://') || (db.host || '').startsWith('mongodb://')
 
   return (
     <div
@@ -1143,9 +1710,12 @@ function EditDialog({ db, onSave, onCancel }: EditDialogProps) {
       <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
         <CardHeader>
           <CardTitle>编辑数据源</CardTitle>
-          <CardDescription>修改数据源连接信息</CardDescription>
+          <CardDescription>
+            {isFile ? '文件数据源' : isCloud ? '云数据库' : '数据库连接'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* 名称 — 所有类型都有 */}
           <div className="space-y-2">
             <label className="text-sm font-medium">名称</label>
             <Input
@@ -1154,39 +1724,78 @@ function EditDialog({ db, onSave, onCancel }: EditDialogProps) {
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">主机地址</label>
-            <Input
-              value={formData.host}
-              onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+          {/* 所属项目 */}
+          {projects.length > 0 && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">端口</label>
-              <Input
-                type="number"
-                value={formData.port}
-                onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) || 0 })}
+              <label className="text-sm font-medium">所属项目</label>
+              <Select
+                options={projects.map(p => ({ value: p.id, label: p.name }))}
+                value={(formData as any).projectId || 'default'}
+                onChange={(val) => setFormData({ ...formData, projectId: val } as any)}
+                placeholder="选择项目"
               />
             </div>
+          )}
+
+          {/* 文件数据源：只显示名称 + 文件提示 */}
+          {isFile && (
+            <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">文件信息</p>
+              <p>文件名：{formData.database}</p>
+              <p className="mt-1 text-xs">文件数据源只能修改名称，无需密码</p>
+            </div>
+          )}
+
+          {/* 云数据库：显示连接字符串 */}
+          {isCloud && !isFile && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">数据库名</label>
-              <Input
-                value={formData.database}
-                onChange={(e) => setFormData({ ...formData, database: e.target.value })}
+              <label className="text-sm font-medium">连接字符串</label>
+              <textarea
+                className="w-full min-h-[80px] rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                value={formData.host}
+                onChange={(e) => setFormData({ ...formData, host: e.target.value })}
               />
             </div>
-          </div>
+          )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">用户名</label>
-            <Input
-              value={formData.username}
-              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-            />
-          </div>
+          {/* 普通数据库：显示所有连接信息 */}
+          {!isFile && !isCloud && (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">主机地址</label>
+                <Input
+                  value={formData.host}
+                  onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">端口</label>
+                  <Input
+                    type="number"
+                    value={formData.port}
+                    onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">数据库名</label>
+                  <Input
+                    value={formData.database}
+                    onChange={(e) => setFormData({ ...formData, database: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">用户名</label>
+                <Input
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                />
+              </div>
+            </>
+          )}
 
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="outline" onClick={onCancel} className="gap-2">

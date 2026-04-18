@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react"
 import { cn } from "../../lib/utils"
 import {
   Search,
@@ -9,10 +10,12 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  Menu,
   X,
+  Moon,
+  Sun,
 } from "lucide-react"
 import { DeciFlowLogo } from "./DeciFlowLogo"
+import { useTheme } from "../../contexts/ThemeContext"
 
 interface SidebarProps {
   collapsed: boolean
@@ -33,6 +36,10 @@ const navItems = [
 ]
 
 export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, activeItem = "query", onNavigate }: SidebarProps) {
+  const { mode, toggleTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
   const handleNavClick = (itemId: string) => {
     if (onNavigate) {
       onNavigate(itemId)
@@ -56,7 +63,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, active
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-3">
-        {navItems.map((item, index) => {
+        {navItems.map((item) => {
           const isActive = activeItem === item.id
           return (
             <button
@@ -91,8 +98,8 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, active
         })}
       </nav>
 
-      {/* Settings */}
-      <div className="border-t border-border p-3">
+      {/* Settings + Theme Toggle */}
+      <div className="border-t border-border p-3 space-y-1">
         <button
           onClick={() => handleNavClick("settings")}
           className={cn(
@@ -102,6 +109,21 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, active
         >
           <Settings className="h-5 w-5 shrink-0" />
           {!collapsed && <span>设置</span>}
+        </button>
+        <button
+          onClick={toggleTheme}
+          title={mounted && mode === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+          className={cn(
+            "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:bg-secondary hover:text-foreground",
+            collapsed && "justify-center px-2"
+          )}
+        >
+          {mounted && mode === "dark" ? (
+            <Sun className="h-5 w-5 shrink-0" />
+          ) : (
+            <Moon className="h-5 w-5 shrink-0" />
+          )}
+          {!collapsed && <span>{mounted && mode === "dark" ? "浅色模式" : "深色模式"}</span>}
         </button>
       </div>
 

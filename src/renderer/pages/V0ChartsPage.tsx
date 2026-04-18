@@ -442,47 +442,6 @@ export function V0ChartsPage({ onNavigate }: V0Props) {
     )
   }
 
-  // 当没有图表时显示空状态
-  if (charts.length === 0) {
-    return (
-      <PageLayout activeItem="charts" onNavigate={onNavigate}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <h1 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
-              数据可视化
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              创建和管理你的数据图表
-            </p>
-          </div>
-          <Button size="sm" onClick={handleCreateChart}>
-            <Plus className="mr-2 h-4 w-4" />
-            新建图表
-          </Button>
-        </div>
-        <EmptyStates type="no-charts" />
-        <ChartEditDialog
-          isOpen={editDialogOpen}
-          onClose={() => setEditDialogOpen(false)}
-          onSave={handleSaveChart}
-          editChart={editingChart}
-        />
-
-        {/* Delete Confirmation Dialog */}
-        <AlertDialog
-          isOpen={deleteDialogOpen}
-          onClose={() => setDeleteDialogOpen(false)}
-          title="删除图表"
-          message={`确定要删除图表 "${chartToDelete?.name}" 吗？此操作无法撤销。`}
-          confirmText="删除"
-          cancelText="取消"
-          onConfirm={confirmDeleteChart}
-          variant="error"
-        />
-      </PageLayout>
-    )
-  }
-
   return (
     <PageLayout activeItem="charts" onNavigate={onNavigate}>
       {/* Page Header */}
@@ -507,8 +466,11 @@ export function V0ChartsPage({ onNavigate }: V0Props) {
         </div>
       </div>
 
+      {/* Empty State */}
+      {charts.length === 0 && <EmptyStates type="no-charts" />}
+
       {/* Charts Grid */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      {charts.length > 0 && <div className="grid gap-6 lg:grid-cols-2">
         {charts.map((chart) => {
           const ChartIcon = chartTypeIcons[chart.type]
           return (
@@ -551,7 +513,7 @@ export function V0ChartsPage({ onNavigate }: V0Props) {
             </Card>
           )
         })}
-      </div>
+      </div>}
 
       {/* Edit Dialog */}
       <ChartEditDialog

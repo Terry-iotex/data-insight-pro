@@ -17,6 +17,8 @@ const electronAPI = {
 
     // 获取对话历史
     getHistory: () => ipcRenderer.invoke('ai:get-history'),
+    // 检查 AI 是否已初始化（有 apiKey 且已 init）
+    isReady: () => ipcRenderer.invoke('ai:isReady'),
   },
 
   // ========== 数据库 API ==========
@@ -273,6 +275,18 @@ const electronAPI = {
     use: (id: string) => ipcRenderer.invoke('templates:use', id),
     search: (keyword: string) => ipcRenderer.invoke('templates:search', keyword),
     getPopular: (limit?: number) => ipcRenderer.invoke('templates:getPopular', limit),
+  },
+
+  // ========== 表格 Schema 智能分析 API ==========
+  tableAnalysis: {
+    // 分析单个 CSV 文件，返回表格类型 + 匹配的分析模板
+    analyzeSchema: (filePath: string, fileName: string) =>
+      ipcRenderer.invoke('table:analyze-schema', filePath, fileName),
+    // 获取完整分析模板库（含分类标签）
+    getTemplateLibrary: () => ipcRenderer.invoke('table:get-template-library'),
+    // 批量分析多张表
+    batchAnalyze: (tables: Array<{ filePath: string; fileName: string }>) =>
+      ipcRenderer.invoke('table:batch-analyze', tables),
   },
 }
 

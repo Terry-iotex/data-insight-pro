@@ -127,41 +127,56 @@ export function ChartEditDialog({ isOpen, onClose, onSave, editChart }: ChartEdi
 
   // 处理打开表浏览器
   const handleOpenTableBrowser = () => {
-    if (!selectedDatabase?.connected) {
-      // 数据库未连接，可以显示提示或阻止打开
-      console.log("数据库未连接，请先连接数据库")
+    if (!selectedDatabase?.connected) return
+    // 文件类型数据源不支持表浏览器，直接使用文件名作为表名
+    if (selectedDatabase.type === 'file') {
+      const fileName = selectedDatabase.database || selectedDatabase.name || ''
+      const tableName = fileName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_')
+      setTableName(tableName || 'data')
       return
     }
     setShowTableBrowser(true)
   }
 
-  // 处理表选择
+  // 处理表选择 — 自动推断字段（无需 AI）
   const handleTableSelect = (selectedTableName: string, columns?: any[]) => {
     setTableName(selectedTableName)
-    // 如果有列信息，可以自动填充 X 轴和数值字段
-    if (columns && columns.length > 0) {
-      // 尝试找到合适的 X 轴字段（通常是字符串或日期类型）
-      const xField = columns.find((c) =>
-        c.type?.toLowerCase().includes("char") ||
-        c.type?.toLowerCase().includes("text") ||
-        c.type?.toLowerCase().includes("date") ||
-        c.type?.toLowerCase().includes("time")
-      )
-      if (xField && !xAxis) {
-        setXAxis(xField.name)
-      }
+    if (!columns || columns.length === 0) return
 
-      // 尝试找到合适的数值字段
-      const numField = columns.find((c) =>
-        c.type?.toLowerCase().includes("int") ||
-        c.type?.toLowerCase().includes("number") ||
-        c.type?.toLowerCase().includes("decimal") ||
-        c.type?.toLowerCase().includes("float") ||
-        c.type?.toLowerCase().includes("double")
-      )
-      if (numField && !valueField) {
-        setValueField(numField.name)
-      }
+    // 优先级：日期/时间 > 字符串 作为 X 轴
+    const dateField = columns.find((c) =>
+      c.type?.toLowerCase().includes("date") ||
+      c.type?.toLowerCase().includes("time") ||
+      /^(date|day|week|month|year|period|created|updated|dt)$/i.test(c.name)
+    )
+    const strField = columns.find((c) =>
+      c.type?.toLowerCase().includes("char") ||
+      c.type?.toLowerCase().includes("text") ||
+      c.type?.toLowerCase().includes("varchar") ||
+      /^(name|title|label|category|type|status|region|city|channel|platform)$/i.test(c.name)
+    )
+    if (!xAxis) {
+      setXAxis((dateField || strField)?.name || columns[0]?.name || '')
+    }
+
+    // 优先级：金额/收入/指标 > 通用数值 作为数值字段
+    const metricField = columns.find((c) =>
+      /^(amount|revenue|count|total|sum|value|sales|gmv|cost|price|profit|rate|score|num)$/i.test(c.name) ||
+      c.name?.toLowerCase().includes('amount') ||
+      c.name?.toLowerCase().includes('count') ||
+      c.name?.toLowerCase().includes('total') ||
+      c.name?.toLowerCase().includes('revenue')
+    )
+    const numField = columns.find((c) =>
+      c.type?.toLowerCase().includes("int") ||
+      c.type?.toLowerCase().includes("decimal") ||
+      c.type?.toLowerCase().includes("float") ||
+      c.type?.toLowerCase().includes("double") ||
+      c.type?.toLowerCase().includes("numeric") ||
+      c.type?.toLowerCase().includes("number")
+    )
+    if (!valueField) {
+      setValueField((metricField || numField)?.name || '')
     }
   }
 
@@ -229,7 +244,7 @@ export function ChartEditDialog({ isOpen, onClose, onSave, editChart }: ChartEdi
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 modal-backdrop-animate"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 modal-backdrop-animate"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose()
@@ -412,11 +427,17 @@ export function ChartEditDialog({ isOpen, onClose, onSave, editChart }: ChartEdi
           <h3 className={headingClass}>样式配置</h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between py-1">
-              <span className={cn("text-sm", switchLabelClass)}>显示图例</span>
+              <div>
+                <span className={cn("text-sm", switchLabelClass)}>显示图例</span>
+                <p className="text-xs text-muted-foreground mt-0.5">在图表旁显示颜色标注说明</p>
+              </div>
               <Switch checked={showLegend} onCheckedChange={setShowLegend} />
             </div>
             <div className="flex items-center justify-between py-1">
-              <span className={cn("text-sm", switchLabelClass)}>显示网格</span>
+              <div>
+                <span className={cn("text-sm", switchLabelClass)}>显示网格</span>
+                <p className="text-xs text-muted-foreground mt-0.5">在图表背景显示参考网格线</p>
+              </div>
               <Switch checked={showGrid} onCheckedChange={setShowGrid} />
             </div>
 

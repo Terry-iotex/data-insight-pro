@@ -21,6 +21,7 @@ import {
   type FieldMetadata,
 } from "../stores/MetadataStore"
 import { useDatabase } from "../stores/DatabaseStore"
+import { useAnalysisTemplates } from "../stores/AnalysisTemplateStore"
 
 // ─── Built-in metrics library ────────────────────────────────────────────────
 
@@ -105,7 +106,8 @@ interface V0Props {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function V0DictionaryPage({ onNavigate }: V0Props) {
-  const { databases } = useDatabase()
+  const { databases, updateDatabase } = useDatabase()
+  const { unconfirmedSourceIds, markSourceConfirmed } = useAnalysisTemplates()
   const [activeTab, setActiveTab] = useState<"fields" | "metrics">("fields")
 
   // ── Fields tab ──
@@ -276,6 +278,52 @@ export function V0DictionaryPage({ onNavigate }: V0Props) {
           </div>
         )}
       </div>
+
+      {/* 待确认数据表横幅 */}
+      {unconfirmedSourceIds.length > 0 && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                以下数据表由 AI 自动识别，建议确认字段含义后再做分析
+              </p>
+              <div className="mt-3 space-y-2">
+                {unconfirmedSourceIds.map(sourceId => {
+                  const db = databases.find(d => d.id === sourceId)
+                  if (!db) return null
+                  return (
+                    <div
+                      key={sourceId}
+                      className="flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium text-foreground">{db.name}</span>
+                        {db.schemaInfo && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            AI 识别为：{db.schemaInfo.tableType}
+                            （{Math.round(db.schemaInfo.confidence * 100)}% 置信度）
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          updateDatabase(sourceId, { schemaConfirmed: true })
+                          markSourceConfirmed(sourceId)
+                        }}
+                        className="ml-3 shrink-0 flex items-center gap-1 rounded-lg bg-amber-500/20 px-3 py-1 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-500/30 dark:text-amber-400"
+                      >
+                        <Check className="h-3 w-3" />
+                        确认无误
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-border">

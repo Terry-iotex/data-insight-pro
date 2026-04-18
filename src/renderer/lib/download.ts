@@ -112,7 +112,7 @@ export async function copyToClipboard(data: any): Promise<boolean> {
 /**
  * Show a simple toast notification
  */
-export function showToast(message: string, type: "success" | "error" | "info" = "info") {
+export function showToast(message: string, type: "success" | "error" | "info" | "warning" = "info") {
   // Check if a toast container exists, create one if not
   let container = document.getElementById("toast-container")
   if (!container) {
@@ -128,6 +128,7 @@ export function showToast(message: string, type: "success" | "error" | "info" = 
     success: "bg-emerald-500",
     error: "bg-red-500",
     info: "bg-primary",
+    warning: "bg-amber-500",
   }[type]
 
   toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-right duration-300`
