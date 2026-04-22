@@ -8,10 +8,48 @@ interface QueryResult {
   rowCount: number
   duration: number
   sql: string
+  confidence?: {
+    overall: number
+    level: 'high' | 'medium' | 'low'
+    breakdown?: Record<string, number>
+    explain?: string[]
+  } | null
 }
 
 interface StatsCardsProps {
   result: QueryResult
+}
+
+const CONFIDENCE_COLORS: Record<string, string> = {
+  high: 'text-green-500',
+  medium: 'text-amber-500',
+  low: 'text-red-500',
+}
+
+const CONFIDENCE_LABELS: Record<string, string> = {
+  high: '高',
+  medium: '中',
+  low: '低',
+}
+
+function ConfidenceBadge({ confidence }: { confidence: NonNullable<QueryResult['confidence']> }) {
+  const level = confidence.level || 'medium'
+  const score = confidence.overall || 0
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className={`text-sm font-semibold ${CONFIDENCE_COLORS[level] || 'text-muted-foreground'}`}>
+        {Math.round(score)}%
+      </div>
+      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+        level === 'high' ? 'bg-green-500/15 text-green-600 dark:text-green-400' :
+        level === 'medium' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' :
+        'bg-red-500/15 text-red-600 dark:text-red-400'
+      }`}>
+        {CONFIDENCE_LABELS[level]}可信度
+      </span>
+    </div>
+  )
 }
 
 export function StatsCards({ result }: StatsCardsProps) {
@@ -66,24 +104,38 @@ export function StatsCards({ result }: StatsCardsProps) {
   ]
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {stats.map((stat) => (
-        <div
-          key={stat.label}
-          className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
-        >
-          <div className="absolute inset-0 -z-10 bg-gradient-to-br from-transparent to-muted/30 opacity-0 transition-opacity group-hover:opacity-100" />
-          <div className="flex items-start justify-between">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
-              <p className="text-2xl font-bold tracking-tight text-foreground">{stat.value}</p>
+    <div className="space-y-3">
+      {result.confidence ? (
+        <div className="flex items-center">
+          <ConfidenceBadge confidence={result.confidence} />
+          {result.confidence.explain && result.confidence.explain.length > 0 && (
+            <div className="ml-3 flex items-center gap-1 text-xs text-muted-foreground">
+              {result.confidence.explain.slice(0, 2).map((e, i) => (
+                <span key={i}>{e}</span>
+              ))}
             </div>
-            <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${stat.bgColor}`}>
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
+          )}
+        </div>
+      ) : null}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <div
+            key={stat.label}
+            className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+          >
+            <div className="absolute inset-0 -z-10 bg-gradient-to-br from-transparent to-muted/30 opacity-0 transition-opacity group-hover:opacity-100" />
+            <div className="flex items-start justify-between">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                <p className="text-2xl font-bold tracking-tight text-foreground">{stat.value}</p>
+              </div>
+              <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${stat.bgColor}`}>
+                <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }

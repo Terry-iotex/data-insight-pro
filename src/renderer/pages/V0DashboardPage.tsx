@@ -31,6 +31,12 @@ interface QueryResult {
   rowCount: number
   duration: number
   sql: string
+  confidence?: {
+    overall: number
+    level: 'high' | 'medium' | 'low'
+    breakdown?: Record<string, number>
+    explain?: string[]
+  } | null
 }
 
 interface ChartRecommendation {
@@ -178,7 +184,7 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
         setDbTableLists(prev => ({ ...prev, [dbId]: ['users', 'orders', 'products', 'events'] }))
         return
       }
-      const tables: string[] = await (window as any).electronAPI.database.tables(db)
+      const tables: string[] = await window.electronAPI.db.tables(db)
       setDbTableLists(prev => ({ ...prev, [dbId]: tables || [] }))
     } catch {
       setDbTableLists(prev => ({ ...prev, [dbId]: [] }))
@@ -300,7 +306,7 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
     clearResults()
 
     try {
-      const dbResult = await (window as any).electronAPI.database.query(db, sql)
+      const dbResult = await (window as any).electronAPI.db.query(db, sql)
       if (!dbResult.success) {
         throw new Error(dbResult.error || "查询执行失败")
       }
@@ -311,6 +317,7 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
         rowCount: data.rowCount ?? (data.rows?.length || 0),
         duration: dbResult.executionTime || 0,
         sql,
+        confidence: dbResult.confidence || null,
       })
       setLoadingStage('')
     } catch (err: any) {
@@ -453,7 +460,7 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
 
       // Step 3: 执行查询
       setLoadingStage('正在查询数据库…')
-      const dbResult = await window.electronAPI.database.query(db, finalSQL)
+      const dbResult = await window.electronAPI.db.query(db, finalSQL)
       if (!dbResult.success) {
         throw new Error(dbResult.error || "查询执行失败")
       }
@@ -466,6 +473,7 @@ export function V0DashboardPage({ onNavigate }: V0DashboardPageProps) {
         rowCount: resultData.rowCount ?? (resultData.rows?.length || 0),
         duration,
         sql: finalSQL,
+        confidence: dbResult.confidence || null,
       }
       persistResult(result)
       setLoadingStage('')
